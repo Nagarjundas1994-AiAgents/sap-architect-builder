@@ -1,0 +1,131 @@
+{
+  "source": "SAP Architecture Center (curated seed)",
+  "portal": "https://architecture.learning.sap.com/",
+  "guideline": "https://sap.github.io/btp-solution-diagrams/",
+  "note": "Curated offline seed derived from public Architecture Center reference themes. Expand via npm run corpus:seed or replace with live crawl + pgvector.",
+  "references": [
+    {
+      "id": "ra-agentic-ai",
+      "title": "Agentic AI & AI Agents on SAP BTP",
+      "summary": "Joule orchestrates custom agents via A2A; MCP tools through SAP Integration Suite; identity via SAP Cloud Identity Services; LLM access via Generative AI Hub.",
+      "tags": ["joule", "agents", "a2a", "mcp", "btp", "generative-ai", "ra0029"],
+      "products": [
+        "Joule",
+        "SAP Build",
+        "SAP Integration Suite",
+        "SAP Generative AI Hub",
+        "SAP Cloud Identity Services",
+        "SAP HANA Cloud"
+      ],
+      "corpus": "agentic ai joule agent builder a2a mcp integration suite generative ai hub hana cloud identity services btp custom agents multi-agent orchestration whiteboard architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/docs/ref-arch/98efa0",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-clean-core-extension",
+      "title": "Clean-Core Side-by-Side Extension",
+      "summary": "Extensions on SAP BTP call SAP S/4HANA via governed APIs (OData/Events); CAP services; no core modifications.",
+      "tags": ["clean-core", "s4hana", "extension", "cap", "btp"],
+      "products": [
+        "SAP S/4HANA Cloud",
+        "SAP BTP",
+        "SAP CAP",
+        "SAP Integration Suite",
+        "SAP Event Mesh",
+        "SAP Build Work Zone"
+      ],
+      "corpus": "clean core side-by-side extension s/4hana odata event mesh cap cloud foundry btp custom app api management architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-integration-hub",
+      "title": "Enterprise Integration Hub",
+      "summary": "SAP Integration Suite as central mediation for SAP and non-SAP systems with API management and Cloud Connector hybrid connectivity.",
+      "tags": ["integration", "api", "cpi", "hybrid"],
+      "products": [
+        "SAP Integration Suite",
+        "SAP API Management",
+        "SAP Cloud Connector",
+        "SAP Process Orchestration"
+      ],
+      "corpus": "integration suite cpi api management cloud connector hybrid integration non-sap partner systems architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-data-to-value",
+      "title": "Data-to-Value with SAP Datasphere & Analytics",
+      "summary": "SAP Datasphere + SAP Analytics Cloud for governed analytics over S/4 and external data sources.",
+      "tags": ["datasphere", "analytics", "data"],
+      "products": [
+        "SAP Datasphere",
+        "SAP Analytics Cloud",
+        "SAP HANA Cloud",
+        "SAP S/4HANA"
+      ],
+      "corpus": "datasphere analytics cloud hana data lake warehouse reporting dashboard architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-identity-zero-trust",
+      "title": "Identity & Zero-Trust Access",
+      "summary": "SAP Cloud Identity Services (IAS/IPS) with XSUAA for BTP apps; principal propagation to backends.",
+      "tags": ["identity", "security", "ias", "xsuaa"],
+      "products": [
+        "SAP Cloud Identity Services",
+        "SAP Authorization and Trust Management (XSUAA)",
+        "SAP Cloud Connector"
+      ],
+      "corpus": "identity authentication service ias ips xsuaa trust principal propagation security zero trust architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-btp-foundation",
+      "title": "SAP BTP Foundation Landing Zone",
+      "summary": "Global account, directories, subaccounts, Cloud Foundry/Kyma environments, destinations, and connectivity baseline.",
+      "tags": ["btp", "landing-zone", "subaccount", "kyma", "cloud-foundry"],
+      "products": [
+        "SAP BTP",
+        "SAP Connectivity service",
+        "SAP Destination service",
+        "SAP Cloud Identity Services"
+      ],
+      "corpus": "btp landing zone global account directory subaccount cloud foundry kyma destination connectivity architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-event-driven",
+      "title": "Event-Driven Extension Architecture",
+      "summary": "SAP Event Mesh / Advanced Event Mesh for asynchronous integration between S/4 and side-by-side apps.",
+      "tags": ["events", "async", "event-mesh", "eda"],
+      "products": [
+        "SAP Event Mesh",
+        "SAP Integration Suite",
+        "SAP S/4HANA Cloud",
+        "SAP CAP"
+      ],
+      "corpus": "event mesh advanced event mesh asynchronous eda s/4 business events cap extension architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    },
+    {
+      "id": "ra-ai-foundation",
+      "title": "AI Foundation on SAP BTP",
+      "summary": "Generative AI Hub, grounding, document grounding, and governed LLM consumption for enterprise apps.",
+      "tags": ["ai", "generative-ai-hub", "grounding", "llm"],
+      "products": [
+        "SAP Generative AI Hub",
+        "SAP AI Core",
+        "SAP HANA Cloud",
+        "SAP Build"
+      ],
+      "corpus": "generative ai hub ai core grounding vector document grounding llm enterprise architecture center",
+      "sourceUrl": "https://architecture.learning.sap.com/",
+      "source": "architecture-center"
+    }
+  ]
+}

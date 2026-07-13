@@ -1,0 +1,50 @@
+{
+  "name": "@sap-architect/cap",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SAP CAP service + XSUAA scaffold for Architect Builder on BTP",
+  "dependencies": {
+    "@sap-architect/core": "*",
+    "@sap/cds": "^8",
+    "@sap/xsenv": "^5",
+    "@sap/xssec": "^4",
+    "express": "^4"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^1"
+  },
+  "scripts": {
+    "start": "cds-serve",
+    "watch": "cds watch",
+    "build": "cds build --production",
+    "deploy:sqlite": "cds deploy --to sqlite:db.sqlite"
+  },
+  "cds": {
+    "requires": {
+      "auth": {
+        "[production]": {
+          "kind": "xsuaa"
+        },
+        "[development]": {
+          "kind": "mocked",
+          "users": {
+            "architect": {
+              "password": "architect",
+              "roles": ["Architect", "Viewer"]
+            },
+            "viewer": {
+              "password": "viewer",
+              "roles": ["Viewer"]
+            }
+          }
+        }
+      },
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": "db.sqlite"
+        }
+      }
+    }
+  }
+}

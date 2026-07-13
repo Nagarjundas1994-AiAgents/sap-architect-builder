@@ -1,0 +1,20 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: sap-architect-pgvector
+    environment:
+      POSTGRES_USER: architect
+      POSTGRES_PASSWORD: architect
+      POSTGRES_DB: architect
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U architect -d architect"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgvector_data:

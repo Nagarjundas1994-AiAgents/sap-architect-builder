@@ -1,0 +1,24 @@
+{
+  "name": "sap-architect-builder",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Prototype: whiteboard/sketch → SAP architecture → editable Draw.io",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @sap-architect/api",
+    "dev:web": "npm run dev -w @sap-architect/web",
+    "dev:cap": "npm run watch -w @sap-architect/cap",
+    "build": "npm run build -w @sap-architect/shared && npm run build -w @sap-architect/drawio && npm run build -w @sap-architect/core && npm run build -w @sap-architect/api && npm run build -w @sap-architect/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "demo:pipeline": "npm run demo:pipeline -w @sap-architect/core",
+    "corpus:seed": "npm run corpus:seed -w @sap-architect/core",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

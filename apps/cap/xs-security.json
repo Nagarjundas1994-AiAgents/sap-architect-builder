@@ -1,0 +1,45 @@
+{
+  "xsappname": "sap-architect-builder",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.Architect",
+      "description": "Run pipelines, approve models, seed corpus"
+    },
+    {
+      "name": "$XSAPPNAME.Viewer",
+      "description": "Read jobs and reference architectures"
+    }
+  ],
+  "attributes": [],
+  "role-templates": [
+    {
+      "name": "Architect",
+      "description": "Solution architect",
+      "scope-references": ["$XSAPPNAME.Architect", "$XSAPPNAME.Viewer"]
+    },
+    {
+      "name": "Viewer",
+      "description": "Read-only consumer",
+      "scope-references": ["$XSAPPNAME.Viewer"]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "ArchitectBuilder_Architect",
+      "description": "Architect Builder – Architects",
+      "role-template-references": ["$XSAPPNAME.Architect"]
+    },
+    {
+      "name": "ArchitectBuilder_Viewer",
+      "description": "Architect Builder – Viewers",
+      "role-template-references": ["$XSAPPNAME.Viewer"]
+    }
+  ],
+  "oauth2-configuration": {
+    "redirect-uris": [
+      "https://*.cfapps.*.hana.ondemand.com/**",
+      "http://localhost:4004/**"
+    ]
+  }
+}

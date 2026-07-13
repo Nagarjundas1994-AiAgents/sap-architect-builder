@@ -1,0 +1,12 @@
+{
+  "build": {
+    "target": "gen"
+  },
+  "requires": {
+    "auth": {
+      "[development]": {
+        "kind": "mocked"
+      }
+    }
+  }
+}
