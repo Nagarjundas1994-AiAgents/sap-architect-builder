@@ -1,3 +1,5 @@
+import { SAP_ICON_CATALOG } from "./icons.js";
+
 export interface ValidationIssue {
   level: "error" | "warning";
   code: string;
@@ -47,16 +49,24 @@ export function validateDrawioXml(xml: string): ValidationResult {
     if (isVertex) vertexCount += 1;
 
     if (isEdge) {
+      const id = attrs.match(/\bid="([^"]+)"/)?.[1];
+      // A free-standing edge (network barrier, annotation) anchors on explicit
+      // sourcePoint/targetPoint instead of cell ids — both forms are valid.
+      const block = id
+        ? xml.slice(xml.indexOf(`id="${id}"`), xml.indexOf(`id="${id}"`) + 900)
+        : "";
+      const hasPoints =
+        /as="sourcePoint"/.test(block) && /as="targetPoint"/.test(block);
       const source = attrs.match(/\bsource="([^"]+)"/)?.[1];
       const target = attrs.match(/\btarget="([^"]+)"/)?.[1];
-      if (!source || !idSet.has(source)) {
+      if (!hasPoints && (!source || !idSet.has(source))) {
         issues.push({
           level: "error",
           code: "BAD_EDGE_SOURCE",
           message: `Edge missing or unknown source: ${source ?? "(none)"}`,
         });
       }
-      if (!target || !idSet.has(target)) {
+      if (!hasPoints && (!target || !idSet.has(target))) {
         issues.push({
           level: "error",
           code: "BAD_EDGE_TARGET",
@@ -78,17 +88,92 @@ export function validateDrawioXml(xml: string): ValidationResult {
     }
   }
 
-  // Style contract spot checks
-  if (xml.includes("arcSize=16") || /arcSize=(?!24\b|50\b)\d+/.test(xml)) {
-    // allow only 24 (areas/cards) and 50 (pills) as primary contract values
-    const bad = xml.match(/arcSize=(?!24\b|50\b)\d+/g);
-    if (bad?.length) {
+  // ── SAP Style Contract regression checks ────────────────────────────────
+  // Areas and cards use absolute arcSize 24; interface pills use 50.
+  const badArc = xml.match(/arcSize=(?!24\b|50\b)\d+/g);
+  if (badArc?.length) {
+    issues.push({
+      level: "warning",
+      code: "ARCSIZE_CONTRACT",
+      message: `Non-contract arcSize values: ${[...new Set(badArc)].join(", ")}`,
+    });
+  }
+
+  // Stroke width is 1.5 everywhere except 4px network barriers (icon chrome is 1).
+  const badStroke = [...xml.matchAll(/strokeWidth=([\d.]+)/g)]
+    .map((m) => m[1])
+    .filter((w) => !["1", "1.5", "4"].includes(w));
+  if (badStroke.length) {
+    issues.push({
+      level: "warning",
+      code: "STROKEWIDTH_CONTRACT",
+      message: `Non-contract strokeWidth values: ${[...new Set(badStroke)].join(", ")}`,
+    });
+  }
+
+  // Arrowheads are blockThin; a plain endArrow=classic is off-contract.
+  if (/endArrow=(classic|open|oval|diamond)\b/.test(xml)) {
+    issues.push({
+      level: "warning",
+      code: "ARROWHEAD_CONTRACT",
+      message: "Edges must use endArrow=blockThin",
+    });
+  }
+
+  // Every edge must be orthogonally routed like the Architecture Center references.
+  const straightEdges = [...xml.matchAll(/<mxCell\b[^>]*\bedge="1"[^>]*>/g)].filter(
+    (m) => !/edgeStyle=(orthogonalEdgeStyle|none)/.test(m[0])
+  );
+  if (straightEdges.length) {
+    issues.push({
+      level: "warning",
+      code: "EDGE_ROUTING",
+      message: `${straightEdges.length} edge(s) are not orthogonally routed`,
+    });
+  }
+
+  // mxgraph.sap.icon has no html=1 — markup would render as literal text.
+  for (const m of xml.matchAll(/<mxCell\b[^>]*value="([^"]*)"[^>]*style="([^"]*)"/g)) {
+    if (m[2].includes("mxgraph.sap.icon") && /&lt;\/?(b|i|div|font)&gt;/.test(m[1])) {
+      issues.push({
+        level: "error",
+        code: "ICON_LABEL_HTML",
+        message: "SAP icon labels must be plain text (the shape has no html=1)",
+      });
+      break;
+    }
+  }
+
+  // A style key repeated in one string silently takes the last value. Bare tokens are
+  // shape flags, not keys (`style="image;image=…"` is a legitimate Draw.io idiom).
+  for (const m of xml.matchAll(/style="([^"]*)"/g)) {
+    const keys = m[1]
+      .split(";")
+      .filter((kv) => kv.includes("="))
+      .map((kv) => kv.slice(0, kv.indexOf("=")));
+    const dupes = keys.filter((k, i) => k && keys.indexOf(k) !== i);
+    if (dupes.length) {
       issues.push({
         level: "warning",
-        code: "ARCSIZE_CONTRACT",
-        message: `Non-contract arcSize values: ${[...new Set(bad)].join(", ")}`,
+        code: "DUPLICATE_STYLE_KEY",
+        message: `Duplicate style keys: ${[...new Set(dupes)].join(", ")}`,
       });
+      break;
     }
+  }
+
+  // An unknown SAPIcon name renders as an empty shape, not an error — catch it here.
+  const unknownIcons = [...xml.matchAll(/SAPIcon=([^;"]+)/g)]
+    .map((m) => m[1])
+    .filter((name) => !SAP_ICON_CATALOG.has(name));
+  if (unknownIcons.length) {
+    issues.push({
+      level: "error",
+      code: "UNKNOWN_SAP_ICON",
+      message: `SAPIcon names not in the official catalog (render blank): ${[
+        ...new Set(unknownIcons),
+      ].join(", ")}`,
+    });
   }
 
   if (/image=https?:\/\//.test(xml)) {

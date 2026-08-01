@@ -8,12 +8,10 @@ gen/
 .env.local
 .DS_Store
 Thumbs.db
-apps/api/uploads/*
-!apps/api/uploads/.gitkeep
-apps/api/output/*
-!apps/api/output/.gitkeep
-apps/cap/db.sqlite
+# CAP local DB
 apps/cap/*.sqlite
+apps/cap/*.sqlite-shm
+apps/cap/*.sqlite-wal
 *.tsbuildinfo
 coverage/
 .vite/

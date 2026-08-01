@@ -64,6 +64,32 @@ export function refineArchitecture(
     });
   }
 
+  // BTP services are always provisioned inside a subaccount. Architecture Center L1
+  // diagrams show that boundary, so make it explicit rather than implying that
+  // services float directly in the platform.
+  const btp = refined.zones.find((z) => z.kind === "sap-btp" && !z.parentId);
+  const hasSubaccount = refined.zones.some(
+    (z) => z.parentId === btp?.id && /subaccount/i.test(z.label)
+  );
+  if (btp && !hasSubaccount && refined.components.some((c) => c.zoneId === btp.id)) {
+    const subId = `${btp.id}-subaccount`;
+    refined.zones.push({
+      id: subId,
+      label: "Subaccount",
+      kind: "sap-btp",
+      parentId: btp.id,
+    });
+    for (const c of refined.components) if (c.zoneId === btp.id) c.zoneId = subId;
+    for (const z of refined.zones) {
+      if (z.parentId === btp.id && z.id !== subId) z.parentId = subId;
+    }
+    refined.assumptions.push({
+      id: "asm-subaccount",
+      text: "SAP BTP services grouped into a single subaccount boundary — confirm the actual subaccount and space split with the solution owner.",
+      severity: "warning",
+    });
+  }
+
   if (topRef) {
     refined.assumptions.push({
       id: `asm-ref-${topRef.id}`,

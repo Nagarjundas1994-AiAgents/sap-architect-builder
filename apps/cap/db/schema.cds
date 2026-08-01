@@ -6,18 +6,21 @@ using { managed, cuid } from '@sap/cds/common';
  * Persist pipeline jobs and approved architecture models for governance.
  */
 entity Jobs : cuid, managed {
-  externalId     : String(64);
-  status         : String(32);
-  engine         : String(32);
-  title          : String(255);
-  sourceFileName : String(255);
-  hints          : LargeString;
-  extractedJson  : LargeString;
-  refinedJson    : LargeString;
-  approvedJson   : LargeString;
-  gapsJson       : LargeString;
-  drawioXml      : LargeString;
-  error          : LargeString;
+  externalId      : String(64);
+  status          : String(32);
+  engine          : String(32);
+  title           : String(255);
+  sourceFileName  : String(255);
+  hints           : LargeString;
+  extractedJson   : LargeString;
+  refinedJson     : LargeString;
+  approvedJson    : LargeString;
+  referencesJson  : LargeString;
+  stepsJson       : LargeString;
+  gapsJson        : LargeString;
+  resultJson      : LargeString;
+  drawioXml       : LargeString;
+  error           : LargeString;
 }
 
 entity ReferenceArchitectures : managed {

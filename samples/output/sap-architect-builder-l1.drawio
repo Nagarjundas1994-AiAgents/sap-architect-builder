@@ -78,7 +78,7 @@
         <mxCell id="icon-ias" value="SAP Cloud&#xa;Identity Services" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=SAP_Cloud_Identity_Service;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="830" y="180" width="64" height="64" as="geometry"/>
         </mxCell>
-        <mxCell id="icon-xsuaa" value="Authorization and&#xa;Trust Management" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=SAP_Authorization_and_Trust_Management_Service;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="icon-xsuaa" value="Authorization and&#xa;Trust Management" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=SAP_Authorization_and_Trust_Management_service;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="960" y="180" width="64" height="64" as="geometry"/>
         </mxCell>
         <mxCell id="icon-aicore" value="SAP AI Core" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=SAP_AI_Core;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
@@ -90,10 +90,10 @@
         <mxCell id="icon-hana" value="SAP HANA Cloud" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=SAP_HANA_Cloud;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="830" y="460" width="64" height="64" as="geometry"/>
         </mxCell>
-        <mxCell id="icon-objectstore" value="Object Store" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=Object_Store;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="icon-objectstore" value="Object Store" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=Object_Store_on_SAP_BTP;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="960" y="460" width="64" height="64" as="geometry"/>
         </mxCell>
-        <mxCell id="icon-html5" value="HTML5 Application&#xa;Repository" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=HTML5_Application_Repository;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="icon-html5" value="HTML5 Application&#xa;Repository" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;SAPIcon=HTML5_App_Repository;fontFamily=Helvetica;fontSize=11;fontColor=default;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="890" y="580" width="64" height="64" as="geometry"/>
         </mxCell>
 

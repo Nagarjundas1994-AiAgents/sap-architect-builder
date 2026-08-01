@@ -2,12 +2,13 @@
   "name": "@sap-architect/cap",
   "version": "0.1.0",
   "private": true,
-  "description": "SAP CAP service + XSUAA scaffold for Architect Builder on BTP",
+  "description": "SAP CAP (CAPM) primary backend — Architect Builder with XSUAA",
   "dependencies": {
     "@sap-architect/core": "*",
     "@sap/cds": "^8",
     "@sap/xsenv": "^5",
     "@sap/xssec": "^4",
+    "cors": "^2.8.5",
     "express": "^4"
   },
   "devDependencies": {
@@ -15,7 +16,8 @@
   },
   "scripts": {
     "start": "cds-serve",
-    "watch": "cds watch",
+    "watch": "cds watch --port 4004",
+    "dev": "cds watch --port 4004",
     "build": "cds build --production",
     "deploy:sqlite": "cds deploy --to sqlite:db.sqlite"
   },
@@ -45,6 +47,9 @@
           "url": "db.sqlite"
         }
       }
+    },
+    "server": {
+      "port": 4004
     }
   }
 }

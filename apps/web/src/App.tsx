@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { approveJob, getHealth, runDemo, runPipeline as runCapPipeline } from "./api";
 import type { ArchitectureModel, PipelineResult } from "./types";
 
 const DEMO_HINTS = [
@@ -61,6 +62,21 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [editJson, setEditJson] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
+  const [backend, setBackend] = useState<string>("CAP…");
+
+  useEffect(() => {
+    void getHealth().then((h) => {
+      if (h.ok) {
+        setBackend(
+          `SAP CAP · ${h.service ?? "ArchitectService"}${
+            h.vectorCount != null ? ` · ${h.vectorCount} refs` : ""
+          }`
+        );
+      } else {
+        setBackend("CAP offline — run npm run dev:cap");
+      }
+    });
+  }, []);
 
   const onFile = useCallback(
     (f: File | null) => {
@@ -101,28 +117,20 @@ export default function App() {
     setResult(null);
     setEditError(null);
     try {
-      let res: Response;
-      if (mode === "demo") {
-        res = await fetch("/api/demo", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            hints,
-            fileName: file?.name ?? "whiteboard-agentic.png",
-            autoApprove: false,
-          }),
-        });
-      } else {
-        const fd = new FormData();
-        if (file) fd.append("image", file);
-        fd.append("hints", hints);
-        if (file?.name) fd.append("fileName", file.name);
-        res = await fetch("/api/pipeline", { method: "POST", body: fd });
-      }
-      const data = (await res.json()) as PipelineResult & { error?: string };
-      if (!res.ok && !data.jobId) {
-        throw new Error(data.error ?? `Request failed (${res.status})`);
-      }
+      // CAP (CAPM) is the backend — /api/* is the CAP REST facade
+      const data =
+        mode === "demo"
+          ? await runDemo({
+              hints,
+              fileName: file?.name ?? "whiteboard-agentic.png",
+              autoApprove: false,
+            })
+          : await runCapPipeline({
+              hints,
+              file,
+              fileName: file?.name,
+              autoApprove: false,
+            });
       setResult(data);
       syncEditor(data);
       if (data.status === "failed") {
@@ -151,19 +159,7 @@ export default function App() {
         return;
       }
 
-      const res = await fetch(`/api/jobs/${result.jobId}/approve`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: parsed }),
-      });
-      const data = (await res.json()) as PipelineResult & { error?: string; issues?: string[] };
-      if (!res.ok) {
-        throw new Error(
-          data.error
-            ? `${data.error}${data.issues ? `: ${data.issues.join("; ")}` : ""}`
-            : `Approve failed (${res.status})`
-        );
-      }
+      const data = await approveJob(result.jobId, parsed);
       setResult(data);
       if (data.status === "failed") setError(data.error ?? "Pipeline failed after approve");
     } catch (e) {
@@ -222,7 +218,7 @@ export default function App() {
           <div>
             <div className="hero-eyebrow">
               <span className="dot-live" />
-              Prototype · LangGraph · SAP BTP ready
+              Backend: SAP CAP (CAPM) · LangGraph · XSUAA ready
             </div>
             <h1>
               From whiteboard sketch to <em>editable SAP architecture</em>
@@ -344,7 +340,10 @@ export default function App() {
           <div className="workspace-header">
             <div>
               <h2>Architecture studio</h2>
-              <p>Upload a sketch or run a scenario — review, approve, download.</p>
+              <p>
+                Powered by <strong>SAP CAP</strong> — upload a sketch or run a scenario, then
+                review and download.
+              </p>
             </div>
             <div className="phase-pills">
               <span className={`phase-pill ${phases.input}`}>1 · Input</span>
@@ -659,10 +658,10 @@ export default function App() {
             </span>
           </div>
           <div className="footer-meta">
+            <span>{backend}</span>
             <span>LangGraph</span>
             <span>Draw.io XML</span>
-            <span>pgvector / HANA Vector</span>
-            <span>CAP + XSUAA path</span>
+            <span>XSUAA</span>
           </div>
         </div>
       </footer>

@@ -1,59 +1,82 @@
-# CAP + XSUAA — Architect Builder
+# SAP CAP (CAPM) — primary backend
 
-Enterprise deployment path for the prototype monorepo.
+This is the **main backend** for SAP Architect Builder.
 
-## What this module provides
-
-| Piece | Purpose |
-|---|---|
-| `db/schema.cds` | Jobs, reference architectures, architect feedback |
-| `srv/architect-service.cds` | OData/REST actions: `runPipeline`, `approvePipeline`, `seedCorpus` |
-| `srv/architect-service.js` | Delegates to `@sap-architect/core` (LangGraph + vector store + Draw.io) |
-| `xs-security.json` | XSUAA scopes/roles: **Architect**, **Viewer** |
-| `mta.yaml` | BTP Multi-Target Application (CAP srv + XSUAA + HANA HDI) |
-
-## Local development (mocked auth)
-
-From monorepo root (after `npm install` + `npm run build`):
-
-```bash
-cd apps/cap
-npm install
-npx cds watch
+```
+React studio (:5173)
+        │  /api/*
+        ▼
+CAP server.js REST facade (:4004)
+        │
+        ▼
+ArchitectService (OData V4 + ApplicationService)
+        │
+        ▼
+@sap-architect/core  (LangGraph · vision · Draw.io · vector corpus)
 ```
 
-Mock users (see `package.json` → `cds.requires.auth`):
+## Run locally
+
+From monorepo root (after `npm install` + build packages):
+
+```bash
+# Terminal 1 — CAP backend
+npm run dev:cap
+
+# Terminal 2 — React UI (proxies /api → :4004)
+npm run dev:web
+```
+
+| Endpoint | Purpose |
+|---|---|
+| http://localhost:4004 | CAP landing / OData |
+| http://localhost:4004/api/health | Health (REST facade) |
+| http://localhost:4004/odata/v4/architect/ | OData V4 service |
+| http://localhost:5173 | React studio |
+
+### Mock users (development)
 
 | User | Password | Roles |
 |---|---|---|
 | `architect` | `architect` | Architect, Viewer |
 | `viewer` | `viewer` | Viewer |
 
-Open `http://localhost:4004` and try:
+REST `/api/*` runs actions as Architect for the UI. OData requires Basic auth:
 
 ```http
-POST /odata/v4/architect/runPipeline
+GET /odata/v4/architect/Jobs
+Authorization: Basic YXJjaGl0ZWN0OmFyY2hpdGVjdA==
+```
+
+### OData actions
+
+```http
+POST /odata/v4/architect/runDemo
 Content-Type: application/json
 Authorization: Basic YXJjaGl0ZWN0OmFyY2hpdGVjdA==
 
-{
-  "hints": "agentic joule custom agents",
-  "fileName": "whiteboard.png",
-  "imageBase64": "",
-  "mimeType": "image/png",
-  "autoApprove": false
-}
+{ "hints": "agentic joule", "fileName": "wb.png", "autoApprove": false }
 ```
 
-Then approve with the returned `jobId` and edited `modelJson`.
+```http
+POST /odata/v4/architect/approvePipeline
+Content-Type: application/json
 
-## BTP deployment (outline)
+{ "jobId": "job-…", "modelJson": "{…ArchitectureModel…}" }
+```
 
-1. Create BTP subaccount + Cloud Foundry space.
-2. Configure **XSUAA** from `xs-security.json` (MTA does this).
-3. Optional: **HANA Cloud** HDI for job persistence; **pgvector** or HANA Vector for retrieval (`DATABASE_URL`).
-4. Point Generative AI Hub credentials at `OPENAI_BASE_URL` / `OPENAI_API_KEY` style env (or Destination).
-5. Build & deploy:
+## Project layout
+
+| File | Role |
+|---|---|
+| `db/schema.cds` | Jobs, ReferenceArchitectures, Feedback |
+| `srv/architect-service.cds` | Service definition + XSUAA roles |
+| `srv/architect-service.js` | Handlers → `@sap-architect/core` |
+| `server.js` | CORS + `/api` REST facade for React |
+| `xs-security.json` | XSUAA scopes / role collections |
+| `mta.yaml` | BTP multi-target deploy |
+
+## BTP
 
 ```bash
 npm install -g mbt
@@ -61,15 +84,4 @@ mbt build
 cf deploy mta_archives/sap-architect-builder_*.mtar
 ```
 
-6. Assign role collections `ArchitectBuilder_Architect` / `ArchitectBuilder_Viewer` to users in BTP Cockpit (or IAS).
-
-## Relationship to Express prototype API
-
-| Express `apps/api` | CAP `apps/cap` |
-|---|---|
-| Fast local UI backend | BTP-native service |
-| No auth (dev) | XSUAA + role templates |
-| In-memory jobs map | CAP entities (SQLite/HANA) |
-| Same `@sap-architect/core` | Same `@sap-architect/core` |
-
-Keep using Express + React for demos; promote to CAP when packaging for BTP.
+Assign role collections `ArchitectBuilder_Architect` / `ArchitectBuilder_Viewer` in the cockpit.

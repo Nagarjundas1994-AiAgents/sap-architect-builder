@@ -6,7 +6,13 @@
     "auth": {
       "[development]": {
         "kind": "mocked"
+      },
+      "[production]": {
+        "kind": "xsuaa"
       }
     }
+  },
+  "server": {
+    "port": 4004
   }
 }

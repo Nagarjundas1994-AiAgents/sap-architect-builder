@@ -388,6 +388,66 @@ export async function runLangGraphPipeline(
   return result;
 }
 
+/**
+ * Finish a job whose checkpoint is gone (process restart, or another BTP instance owns it).
+ * The approved model is everything generation needs — the checkpoint only held history,
+ * which the CAP layer already persists.
+ */
+async function generateFromApprovedModel(
+  jobId: string,
+  model: ArchitectureModel,
+  options: GraphRuntimeOptions
+): Promise<PipelineResult> {
+  const createdAt = now();
+  let steps = baseSteps().map((s) =>
+    s.id === "generate" || s.id === "validate"
+      ? s
+      : {
+          ...s,
+          status: (s.id === "human_review" ? "completed" : "skipped") as PipelineStepStatus["status"],
+          message:
+            s.id === "human_review" ? "Architect approved" : "Restored from persisted job",
+          finishedAt: now(),
+        }
+  );
+
+  const result: PipelineResult = {
+    jobId,
+    status: "running",
+    engine: "langgraph",
+    steps,
+    refined: model,
+    approved: model,
+    createdAt,
+    updatedAt: createdAt,
+  };
+
+  try {
+    const check = validateArchitectureModel(model);
+    if (!check.ok) throw new Error(`Invalid model: ${check.issues.join("; ")}`);
+
+    result.drawioXml = generateDrawioXml(model);
+    steps = mark(steps, "generate", "completed");
+
+    const v = validateDiagram(result.drawioXml);
+    steps = mark(steps, "validate", "completed", { detail: v });
+    if (!v.ok) {
+      throw new Error(`Draw.io validation failed: ${v.issues.map((i) => i.message).join("; ")}`);
+    }
+    result.status = "completed";
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    steps = mark(steps, result.drawioXml ? "validate" : "generate", "failed", { message });
+    result.status = "failed";
+    result.error = message;
+  }
+
+  result.steps = steps;
+  result.updatedAt = now();
+  options.onStep?.(steps, result);
+  return result;
+}
+
 export async function resumeLangGraphPipeline(
   jobId: string,
   approvedModel: ArchitectureModel,
@@ -395,6 +455,13 @@ export async function resumeLangGraphPipeline(
 ): Promise<PipelineResult> {
   const graph = getCompiled(options);
   const config = { configurable: { thread_id: jobId } };
+
+  // ponytail: MemorySaver dies with the process and isn't shared across instances.
+  // Swap in a persistent checkpointer only if resume needs the full graph history back.
+  const snapshot = await graph.getState(config).catch(() => undefined);
+  if (!snapshot?.next?.length) {
+    return generateFromApprovedModel(jobId, approvedModel, options);
+  }
 
   const raw = await graph.invoke(new Command({ resume: approvedModel }), config);
   const result = toResult(raw as S);
