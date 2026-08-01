@@ -264,6 +264,76 @@ test("glyph lookup ignores ambiguous short tokens", () => {
   assert.equal(resolveSapIcon(undefined, "SAP Integration Suite"), "SAP_Integration_Suite");
 });
 
+// ── Robustness ─────────────────────────────────────────────────────────────
+test("a broken model still draws everything it contains", () => {
+  // Silently omitting a component is worse than drawing it awkwardly: the reader
+  // has no way to know something is missing.
+  const broken = {
+    ...MODEL,
+    zones: [
+      { id: "z", label: "Zone", kind: "sap-btp", parentId: "does-not-exist" },
+      { id: "zc1", label: "Cycle A", kind: "custom", parentId: "zc2" },
+      { id: "zc2", label: "Cycle B", kind: "custom", parentId: "zc1" },
+    ],
+    components: [
+      { id: "dup", label: "First", kind: "sap-service", zoneId: "z" },
+      { id: "dup", label: "Second", kind: "sap-service", zoneId: "z" },
+      { id: "orphan", label: "Homeless", kind: "sap-service", zoneId: "no-such-zone" },
+      { id: "pa", label: "Parent cycle A", kind: "sap-service", zoneId: "z", parentId: "pb" },
+      { id: "pb", label: "Parent cycle B", kind: "sap-service", zoneId: "z", parentId: "pa" },
+      { id: "ghost", label: "Missing parent", kind: "sap-service", zoneId: "z", parentId: "nope" },
+    ],
+    flows: [{ id: "f", sourceId: "dup", targetId: "orphan" }],
+  };
+  const xml = generateDrawioXml(broken);
+
+  for (const label of ["First", "Second", "Homeless", "Parent cycle A", "Parent cycle B", "Missing parent", "Zone"])
+    assert.ok(xml.includes(label), `${label} was dropped from the diagram`);
+  assert.match(xml, /Unassigned/, "homeless components need a visible holding area");
+
+  const ids = [...xml.matchAll(/id="([^"]+)"/g)].map((m) => m[1]);
+  assert.equal(ids.length, new Set(ids).size, "duplicate cell ids");
+  assert.deepEqual(validateDrawioXml(xml).issues, []);
+});
+
+test("cards grow to fit long names instead of overflowing", () => {
+  const long = "An extremely long component name that will not fit on one line at all";
+  const xml = generateDrawioXml({
+    ...MODEL,
+    components: [
+      { id: "c1", label: long, subtitle: "and a subtitle that is also unreasonably long for a card", kind: "sap-service", zoneId: "z1" },
+      { id: "c2", label: "Short", kind: "sap-service", zoneId: "z1" },
+    ],
+    flows: [],
+  });
+  const { abs } = parseCells(xml);
+  const big = abs.get("c1");
+  const small = abs.get("c2");
+  assert.ok(big.w > small.w, `long name should widen the card (${big.w} vs ${small.w})`);
+  assert.ok(big.h > small.h, `wrapped text should heighten the card (${big.h} vs ${small.h})`);
+  // but not without bound, or one label distorts the whole canvas
+  assert.ok(big.w <= 320, `card width must stay bounded, got ${big.w}`);
+});
+
+test("connector labels are bounded so they cannot swamp the canvas", () => {
+  const xml = generateDrawioXml({
+    ...MODEL,
+    flows: [{
+      id: "f1", sourceId: "a1", targetId: "c1",
+      label: "a connector label that is far too long to sit on any connector",
+      protocol: "AN-EXTREMELY-LONG-PROTOCOL-NAME",
+    }],
+  });
+  for (const m of xml.matchAll(/<object label="([^"]*)"[^>]*type="flow"/g))
+    assert.ok(m[1].length <= 30, `edge label not clamped: ${m[1]}`);
+  // the full text is preserved on the cell for anyone who inspects it
+  assert.match(xml, /description="a connector label that is far too long/);
+});
+
+test("output is deterministic", () => {
+  assert.equal(generateDrawioXml(NESTED), generateDrawioXml(NESTED));
+});
+
 // ── Pipeline ───────────────────────────────────────────────────────────────
 test("approve still generates when the graph checkpoint is gone (restart / other instance)", async () => {
   const r = await resumeArchitecturePipeline("job-never-checkpointed", MODEL, {

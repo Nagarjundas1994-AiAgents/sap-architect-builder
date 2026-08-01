@@ -53,6 +53,49 @@ const GLYPH_SM = 24;
 const ICON_NODE = 56;
 const ICON_NODE_H = 92; // glyph + label beneath
 const FOOTER_H = 56;
+const CARD_W_MAX = 320;
+const EDGE_LABEL_MAX = 28;
+const CHIP_LABEL_MAX = 18;
+
+/**
+ * Connector labels ride the line, so an overlong one has nowhere to go and lands on
+ * whatever is nearby. Clamp what is drawn; the full text stays on the cell so
+ * nothing is lost to a reader who inspects it.
+ */
+function clamp(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`;
+}
+
+/**
+ * Size a card to its content.
+ *
+ * A fixed width silently truncates or overflows long product names, and enterprise
+ * names are long. Widths are approximated from Helvetica metrics and snapped to the
+ * grid — close enough that text always fits, without needing a text measurer.
+ */
+function measureCard(
+  title: string,
+  subtitle: string | undefined,
+  opts: { glyph?: boolean; compact?: boolean } = {}
+): { w: number; h: number } {
+  const CH_TITLE = opts.compact ? 5.9 : 6.6; // bold 11 / 12px
+  const CH_SUB = 5.6; // italic 11px
+  const padX = SPACE.md + (opts.glyph ? GLYPH + SPACE.sm : 0);
+  const minW = opts.compact ? MODULE_W : CARD_W;
+
+  const titleW = title.length * CH_TITLE;
+  const subW = subtitle ? subtitle.length * CH_SUB : 0;
+  // aim for at most two lines before growing the box
+  const wanted = Math.max(titleW, subW) / 2 + padX;
+  const w = Math.min(CARD_W_MAX, Math.max(minW, Math.ceil(wanted / GRID) * GRID));
+
+  const inner = Math.max(40, w - padX);
+  const titleLines = Math.max(1, Math.ceil(titleW / inner));
+  const subLines = subtitle ? Math.max(1, Math.ceil(subW / inner)) : 0;
+  const needed = SPACE.sm + titleLines * 15 + subLines * 14;
+  const h = Math.max(opts.compact ? MODULE_H : CARD_H, Math.ceil(needed / GRID) * GRID);
+  return { w, h };
+}
 const ACTOR_W = 48;
 const ACTOR_H = 64;
 const HEADER_H = 96;
@@ -112,6 +155,116 @@ export interface GenerateOptions {
   pageHeight?: number;
 }
 
+
+/**
+ * Make a model safe to draw without losing anything.
+ *
+ * A diagram that silently omits a component is worse than one that looks wrong: the
+ * reader has no way to know something is missing. So every dangling reference is
+ * repaired into something visible rather than dropped — unresolved parents are cut,
+ * cycles are broken, homeless components get an explicit holding area, and repeated
+ * ids are made unique instead of overwriting each other.
+ */
+function normalizeModel(model: ArchitectureModel): ArchitectureModel {
+  const zones = [...(model.zones ?? [])];
+  const components = [...(model.components ?? [])];
+  const actors = [...(model.actors ?? [])];
+
+  // 1. unique ids across every addressable object
+  const seen = new Set<string>();
+  const rename = new Map<string, string>();
+  const uniq = (id: string) => {
+    let out = id || "cell";
+    for (let n = 2; seen.has(out); n++) out = `${id}-${n}`;
+    seen.add(out);
+    if (out !== id) rename.set(id, out);
+    return out;
+  };
+  // first occurrence keeps its id; later duplicates are suffixed
+  const zoneIds = zones.map((z) => uniq(z.id));
+  const compIds = components.map((c) => uniq(c.id));
+  const actorIds = actors.map((a) => uniq(a.id));
+  const fixedZones = zones.map((z, i) => ({ ...z, id: zoneIds[i] }));
+  const fixedComponents = components.map((c, i) => ({ ...c, id: compIds[i] }));
+  const fixedActors = actors.map((a, i) => ({ ...a, id: actorIds[i] }));
+
+  const zoneSet = new Set(fixedZones.map((z) => z.id));
+  const compSet = new Set(fixedComponents.map((c) => c.id));
+
+  // 2. a zone whose parent does not exist becomes a root zone
+  for (const z of fixedZones) if (z.parentId && !zoneSet.has(z.parentId)) delete z.parentId;
+  // break zone parent cycles
+  for (const z of fixedZones) {
+    const path = new Set([z.id]);
+    let cur = z;
+    while (cur.parentId) {
+      if (path.has(cur.parentId)) {
+        delete cur.parentId;
+        break;
+      }
+      path.add(cur.parentId);
+      const next = fixedZones.find((x) => x.id === cur.parentId);
+      if (!next) break;
+      cur = next;
+    }
+  }
+
+  // 3. components: unresolvable or circular parents are cut
+  const byId = new Map(fixedComponents.map((c) => [c.id, c]));
+  for (const c of fixedComponents) if (c.parentId && !compSet.has(c.parentId)) delete c.parentId;
+  for (const c of fixedComponents) {
+    const path = new Set([c.id]);
+    let cur = c;
+    while (cur.parentId) {
+      if (path.has(cur.parentId)) {
+        delete cur.parentId;
+        break;
+      }
+      path.add(cur.parentId);
+      const next = byId.get(cur.parentId);
+      if (!next) break;
+      cur = next;
+    }
+  }
+  // a nested component belongs to whatever zone its outermost ancestor sits in
+  for (const c of fixedComponents) {
+    let root = c;
+    for (let i = 0; root.parentId && i < 8; i++) root = byId.get(root.parentId) ?? root;
+    if (root !== c) c.zoneId = root.zoneId;
+  }
+
+  // 4. homeless components get a visible holding area rather than disappearing
+  const HOLDING = "unassigned";
+  let needsHolding = false;
+  for (const c of fixedComponents) {
+    if (!zoneSet.has(c.zoneId)) {
+      c.zoneId = HOLDING;
+      needsHolding = true;
+    }
+  }
+  if (needsHolding && !zoneSet.has(HOLDING)) {
+    fixedZones.push({
+      id: HOLDING,
+      label: "Unassigned",
+      kind: "custom",
+      role: "neutral",
+    } as ArchitectureZone);
+  }
+
+  // 5. flows follow any renames and drop only if an endpoint truly does not exist
+  const placed = new Set([...compSet, ...fixedActors.map((a) => a.id)]);
+  const flows = (model.flows ?? [])
+    .map((f, i) => ({
+      ...f,
+      id: uniq(f.id || `flow-${i}`),
+      sourceId: rename.get(f.sourceId) ?? f.sourceId,
+      targetId: rename.get(f.targetId) ?? f.targetId,
+    }))
+    .filter((f) => placed.has(f.sourceId) && placed.has(f.targetId) && f.sourceId !== f.targetId);
+
+  return { ...model, zones: fixedZones, components: fixedComponents, actors: fixedActors, flows };
+}
+
 export function generateDrawioXml(
   model: ArchitectureModel,
   options: GenerateOptions = {}
@@ -119,6 +272,7 @@ export function generateDrawioXml(
   const profile = profileFor(model.style);
   if (profile.temporal) return generateSequenceXml(model, { pageName: options.pageName });
 
+  model = normalizeModel(model);
   const zones = new Map((model.zones ?? []).map((z) => [z.id, z]));
   const components = model.components ?? [];
   const actors = model.actors ?? [];
@@ -156,9 +310,16 @@ export function generateDrawioXml(
     const kids = childComponents(c.id);
     if (!kids.length) {
       if (c.shape === "icon") return { id: c.id, w: ICON_NODE + SPACE.lg, h: ICON_NODE_H };
-      return depth === 0
-        ? { id: c.id, w: CARD_W, h: CARD_H }
-        : { id: c.id, w: MODULE_W, h: MODULE_H };
+      const compact = depth > 0;
+      const glyph =
+        !compact && c.emphasis !== "muted"
+          ? Boolean(resolveSapIcon(c.officialName, c.label, c.sapIcon))
+          : false;
+      const m = measureCard(c.officialName ?? c.label, compact ? undefined : c.subtitle, {
+        glyph,
+        compact,
+      });
+      return { id: c.id, w: m.w, h: m.h };
     }
     return {
       id: c.id,
@@ -200,9 +361,22 @@ export function generateDrawioXml(
     target: f.targetId,
   }));
 
+  // Connector labels and interface chips sit in the gap between columns, so the gap
+  // has to be wide enough for the widest of them. Without this the layout is tight
+  // and correct while the labels have nowhere to go.
+  const widestAnnotation = flows.reduce((max, f) => {
+    const label = Math.min((f.label ?? "").length, EDGE_LABEL_MAX) * 6;
+    const chip = Math.min((f.protocol ?? "").length, CHIP_LABEL_MAX) * 8 + 16;
+    return Math.max(max, label, chip);
+  }, 0);
+  const columnGap = Math.min(
+    240,
+    Math.max(SPACE.xl + SPACE.md, Math.ceil((widestAnnotation + SPACE.md) / GRID) * GRID)
+  );
+
   const laid = layoutTree(tree, edges, {
     origin: { x: SPACE.lg, y: HEADER_H + SPACE.md },
-    columnGap: SPACE.xl + SPACE.md, // 88 — room for interface chips
+    columnGap,
     nodeGap: SPACE.lg, // 40 — routing channel between stacked cards
     header: SPACE.lg - GRID,
     pad: SPACE.md,
@@ -469,14 +643,17 @@ export function generateDrawioXml(
     fanIndex.set(srcId, k + 1);
     const fan = fanSize.get(srcId) ?? 1;
     // spread across [-0.7, -0.2] when several edges share this source
-    const labelSpread = fan > 1 ? -0.7 + (k / Math.max(1, fan - 1)) * 0.5 : -0.55;
+    // One connector: the midpoint is the gap between the two ends, which is exactly
+    // the space reserved for it. Several from the same node: spread them, because a
+    // shared midpoint is how labels pile up.
+    const labelSpread = fan > 1 ? -0.7 + (k / Math.max(1, fan - 1)) * 0.5 : 0;
 
     const tagged = semantic === "trust";
     const crossesZone = topZoneOf(f.sourceId) !== topZoneOf(f.targetId);
     const labelAt = labelSpread;
     doc.edge(lFlows, {
       id: f.id,
-      label: tagged || chip ? "" : esc(f.label ?? f.protocol ?? ""),
+      label: tagged || chip ? "" : esc(clamp(f.label ?? f.protocol ?? "", EDGE_LABEL_MAX)),
       style: connectorStyle(semantic, { bidirectional: f.bidirectional }),
       source: srcId,
       target: tgtId,
@@ -496,6 +673,7 @@ export function generateDrawioXml(
         type: "flow",
         semantic,
         protocol: f.protocol,
+        description: f.label,
         direction: f.bidirectional ? "bidirectional" : "unidirectional",
       },
     });
@@ -503,7 +681,7 @@ export function generateDrawioXml(
     // A tag wider than the run it sits on will always spill onto the target. The
     // green connector already states "trust"; the tag is an addition, not a
     // requirement, so it is dropped when it cannot sit clear.
-    const tagText = f.label ?? "Trust";
+    const tagText = clamp(f.label ?? "Trust", CHIP_LABEL_MAX);
     const tagW = Math.max(48, tagText.length * 7 + 16);
     if (tagged && hasRoomForChip(from, to, tagText.padEnd(Math.ceil(tagW / 8), " "))) {
       const text = tagText;
@@ -525,10 +703,10 @@ export function generateDrawioXml(
       const crossZone = crossesZone;
       doc.edgeLabel(lFlows, {
         id: `${f.id}-interface`,
-        label: f.protocol!,
+        label: clamp(f.protocol!, CHIP_LABEL_MAX),
         style: chipStyle(semantic),
         parent: f.id,
-        w: Math.max(48, f.protocol!.length * 8 + 16),
+        w: Math.max(48, Math.min(f.protocol!.length, CHIP_LABEL_MAX) * 8 + 16),
         h: 24,
         // a chip at the midpoint of a cross-zone hop lands inside the target zone,
         // on top of its cards; the gutter between zones is the clear run
