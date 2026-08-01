@@ -143,16 +143,67 @@ export function boundaryStyle(role: Role = "security"): string {
   ]);
 }
 
+/**
+ * Visual weight.
+ * - `focus`  — what this diagram is actually about: heavier stroke, accent hue.
+ * - `normal` — the working set.
+ * - `muted`  — surrounding platform context, present for orientation but stepped
+ *   back so it never competes with the subject.
+ */
+export type Emphasis = "focus" | "normal" | "muted";
+
+/** Accent reserved for the subject of the diagram. Used sparingly, by definition. */
+export const FOCUS = { line: "#B0208C", wash: "#FDEFF8" } as const;
+
 /** Foreground object: white card carrying its owner's hue. */
-export function cardStyle(role: Role, opts: { emphasis?: boolean } = {}): string {
+export function cardStyle(role: Role, emphasis: Emphasis = "normal"): string {
   const c = PALETTE[role];
+  const line = emphasis === "focus" ? FOCUS.line : emphasis === "muted" ? INK.hairline : c.line;
+  const text = emphasis === "muted" ? INK.faint : INK.strong;
   return join([
     "rounded=1;whiteSpace=wrap;html=1;",
     `arcSize=${RADIUS.card};absoluteArcSize=1;`,
-    `strokeColor=${c.line};fillColor=${INK.surface};`,
-    `strokeWidth=${opts.emphasis ? STROKE.emphasis : STROKE.regular};`,
+    `strokeColor=${line};fillColor=${INK.surface};`,
+    `strokeWidth=${emphasis === "focus" ? STROKE.emphasis : STROKE.regular};`,
+    emphasis === "muted" && "dashed=1;dashPattern=4 4;",
     "align=center;verticalAlign=middle;",
-    `fontFamily=${FONT};fontSize=${TYPE.cardTitle};fontColor=${INK.strong};fontStyle=1;`,
+    `fontFamily=${FONT};fontSize=${TYPE.cardTitle};fontColor=${text};fontStyle=1;`,
+    "container=0;recursiveResize=0;collapsible=0;",
+  ]);
+}
+
+/**
+ * A component that holds other components: title sits top-left with the children
+ * stacked beneath, the way a runtime visibly contains the things it runs.
+ */
+export function groupCardStyle(role: Role, emphasis: Emphasis = "normal"): string {
+  const c = PALETTE[role];
+  const line = emphasis === "focus" ? FOCUS.line : emphasis === "muted" ? INK.hairline : c.line;
+  const fill = emphasis === "focus" ? FOCUS.wash : emphasis === "muted" ? INK.surface : c.wash;
+  return join([
+    "rounded=1;whiteSpace=wrap;html=1;",
+    `arcSize=${RADIUS.card};absoluteArcSize=1;`,
+    `strokeColor=${line};fillColor=${fill};`,
+    `strokeWidth=${emphasis === "focus" ? STROKE.emphasis : STROKE.regular};`,
+    "align=left;verticalAlign=top;spacingLeft=10;spacingTop=2;",
+    `fontFamily=${FONT};fontSize=${TYPE.cardTitle};`,
+    `fontColor=${emphasis === "muted" ? INK.faint : INK.strong};fontStyle=1;`,
+    "container=0;recursiveResize=0;collapsible=0;",
+  ]);
+}
+
+/** Compact single-line card for a module inside a group. */
+export function moduleStyle(role: Role, emphasis: Emphasis = "normal"): string {
+  const c = PALETTE[role];
+  const line = emphasis === "focus" ? FOCUS.line : emphasis === "muted" ? INK.hairline : c.line;
+  return join([
+    "rounded=1;whiteSpace=wrap;html=1;",
+    `arcSize=${RADIUS.card};absoluteArcSize=1;`,
+    `strokeColor=${line};fillColor=${INK.surface};strokeWidth=${STROKE.regular};`,
+    emphasis === "muted" && "dashed=1;dashPattern=4 4;",
+    "align=center;verticalAlign=middle;",
+    `fontFamily=${FONT};fontSize=${TYPE.cardMeta};`,
+    `fontColor=${emphasis === "muted" ? INK.faint : INK.strong};`,
     "container=0;recursiveResize=0;collapsible=0;",
   ]);
 }

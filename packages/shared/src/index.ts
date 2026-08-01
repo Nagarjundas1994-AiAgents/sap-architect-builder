@@ -77,6 +77,16 @@ export interface ArchitectureComponent {
   role?: ArchitectureRole;
   /** Interfaces this component exposes (drawn as chips on inbound connectors). */
   exposes?: string[];
+  /**
+   * Enclosing component. Lets a diagram show real composition — a runtime holding a
+   * service holding its modules — instead of flattening everything into one row.
+   */
+  parentId?: string;
+  /**
+   * Visual weight. `focus` outlines what the diagram is actually about; `muted`
+   * keeps surrounding platform context visible without competing for attention.
+   */
+  emphasis?: "focus" | "normal" | "muted";
 }
 
 export interface ArchitectureFlow {
@@ -115,6 +125,8 @@ export interface ArchitectureModel {
   level: DiagramLevel;
   /** Rendering convention; defaults to "solution". */
   style?: DiagramStyle;
+  /** Draw a legend box. Off by default: a consistent grammar should not need one. */
+  legend?: boolean;
   summary: string;
   actors: ArchitectureActor[];
   zones: ArchitectureZone[];

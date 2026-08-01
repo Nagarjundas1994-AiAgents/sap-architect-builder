@@ -23,6 +23,9 @@ import {
   areaStyle,
   boundaryStyle,
   cardStyle,
+  groupCardStyle,
+  moduleStyle,
+  type Emphasis,
   chipStyle,
   connectorStyle,
   legendStyle,
@@ -37,6 +40,10 @@ import {
 const CARD_W = 200;
 const CARD_H = 64;
 const GLYPH = 40;
+const MODULE_W = 176;
+const MODULE_H = 32;
+const GROUP_HEADER = 40;
+const GLYPH_SM = 24;
 const ACTOR_W = 48;
 const ACTOR_H = 64;
 const HEADER_H = 96;
@@ -131,6 +138,26 @@ export function generateDrawioXml(
   const childZones = (parentId?: string) =>
     (model.zones ?? []).filter((z) => (z.parentId ?? undefined) === parentId);
 
+  // A component may contain other components (a runtime holding its services), so
+  // the leaves of the zone tree are themselves trees.
+  const childComponents = (parentId?: string) =>
+    components.filter((c) => (c.parentId ?? undefined) === parentId);
+
+  const buildComponent = (c: ArchitectureComponent, depth: number): TreeNode => {
+    const kids = childComponents(c.id);
+    if (!kids.length) {
+      return depth === 0
+        ? { id: c.id, w: CARD_W, h: CARD_H }
+        : { id: c.id, w: MODULE_W, h: MODULE_H };
+    }
+    return {
+      id: c.id,
+      header: GROUP_HEADER,
+      pad: SPACE.sm,
+      children: kids.map((k) => buildComponent(k, depth + 1)),
+    };
+  };
+
   const buildZone = (z: ArchitectureZone): TreeNode => ({
     id: z.id,
     header: SPACE.lg - GRID,
@@ -140,8 +167,8 @@ export function generateDrawioXml(
         ? actors.map((a) => ({ id: a.id, w: ACTOR_W, h: ACTOR_H }))
         : []),
       ...components
-        .filter((c) => c.zoneId === z.id)
-        .map((c) => ({ id: c.id, w: CARD_W, h: CARD_H })),
+        .filter((c) => c.zoneId === z.id && !c.parentId)
+        .map((c) => buildComponent(c, 0)),
       ...childZones(z.id).map(buildZone),
     ],
   });
@@ -250,24 +277,57 @@ export function generateDrawioXml(
   }
 
   // Components — uniform cards; a vendor glyph, when one exists, is inset at the left.
-  for (const c of components) {
+  const componentById = new Map(components.map((c) => [c.id, c]));
+  const hasChildren = (id: string) => components.some((c) => c.parentId === id);
+  const depthOfComponent = (c: ArchitectureComponent) => {
+    let d = 0;
+    let cur = c;
+    while (cur.parentId && componentById.has(cur.parentId) && d < 8) {
+      cur = componentById.get(cur.parentId)!;
+      d++;
+    }
+    return d;
+  };
+
+  // parents before children so a child paints on top of its group card
+  const paintOrder = [...components].sort((a, b) => depthOfComponent(a) - depthOfComponent(b));
+  for (const c of paintOrder) {
     const box = nodeBox(c.id);
     if (!box) continue;
-    const parent = zoneBox.has(c.zoneId) ? c.zoneId : lArch.id;
-    const origin = parent === lArch.id ? { x: 0, y: 0 } : zoneBox.get(parent)!;
+    const inComponent = c.parentId && laid.boxes.has(c.parentId);
+    const parent = inComponent ? c.parentId! : zoneBox.has(c.zoneId) ? c.zoneId : lArch.id;
+    const origin =
+      parent === lArch.id ? { x: 0, y: 0 } : (laid.boxes.get(parent) ?? { x: 0, y: 0 });
     const inferredRole = componentRole(c, zones);
     const role = profile.roleOverride ? profile.roleOverride(c, inferredRole) : inferredRole;
     const stereo = profile.stereotype?.(c);
-    const glyph = resolveSapIcon(c.officialName, c.label, c.sapIcon);
-    const style = glyph
-      ? cardStyle(role).replace("align=center;", `align=left;spacingLeft=${GLYPH + SPACE.sm};`)
-      : cardStyle(role);
+    const emphasis: Emphasis = c.emphasis ?? "normal";
+    const group = hasChildren(c.id);
+    const depth = depthOfComponent(c);
+    const isModule = depth > 0 && !group;
+    const glyph =
+      emphasis === "muted" || isModule
+        ? undefined
+        : resolveSapIcon(c.officialName, c.label, c.sapIcon);
+
+    let style: string;
+    if (group) {
+      style = groupCardStyle(role, emphasis);
+      if (glyph) style = style.replace("spacingLeft=10;", `spacingLeft=${GLYPH_SM + SPACE.sm};`);
+    } else if (depth > 0) {
+      style = moduleStyle(role, emphasis);
+    } else {
+      style = cardStyle(role, emphasis);
+      if (glyph) style = style.replace("align=center;", `align=left;spacingLeft=${GLYPH + SPACE.sm};`);
+    }
 
     doc.shape(lArch, {
       id: c.id,
       label:
         (stereo ? stereotypeMarkup(stereo) : "") +
-        labelMarkup(c.officialName ?? c.label, c.subtitle),
+        (depth > 0 && !group
+          ? esc(c.officialName ?? c.label)
+          : labelMarkup(c.officialName ?? c.label, c.subtitle)),
       style,
       x: box.x - origin.x,
       y: box.y - origin.y,
@@ -275,9 +335,10 @@ export function generateDrawioXml(
       h: box.h,
       parent,
       attrs: {
-        type: "component",
+        type: group ? "component-group" : depth > 0 ? "module" : "component",
         kind: c.kind,
         role,
+        emphasis,
         product: c.officialName,
         interfaces: c.exposes?.join(", "),
         confidence: c.confidence !== undefined ? String(c.confidence) : undefined,
@@ -285,9 +346,11 @@ export function generateDrawioXml(
     });
 
     if (glyph) {
+      const size = group ? GLYPH_SM : GLYPH;
+      const gy = group ? Math.round((GROUP_HEADER - size) / 2) : Math.round((box.h - size) / 2);
       lArch.cells.push(
         `        <mxCell id="${esc(c.id)}-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=${glyph};strokeWidth=1;strokeColor=${INK.hairline};fillColor=${PALETTE[role].wash};gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="${esc(c.id)}">
-          <mxGeometry x="${SPACE.sm - 4}" y="${Math.round((CARD_H - GLYPH) / 2)}" width="${GLYPH}" height="${GLYPH}" as="geometry"/>
+          <mxGeometry x="${group ? SPACE.xs : SPACE.sm - 4}" y="${gy}" width="${size}" height="${size}" as="geometry"/>
         </mxCell>`
       );
     }
@@ -298,7 +361,7 @@ export function generateDrawioXml(
   // stack. Spread them along their own paths instead.
   const fanIndex = new Map<string, number>();
   const fanSize = new Map<string, number>();
-  for (const f of flows) fanSize.set(f.sourceId, (fanSize.get(f.sourceId) ?? 0) + 1);
+  // counted after endpoints are lifted, further down
 
   const topZoneOf = (entityId: string): string | undefined => {
     const c = components.find((x) => x.id === entityId);
@@ -311,17 +374,55 @@ export function generateDrawioXml(
   const usedSemantics = new Set<FlowSemantic>();
   const placed = new Set([...components.map((c) => c.id), ...actors.map((a) => a.id)]);
 
+  /**
+   * Attach a connector to the outermost group that does not also contain the other
+   * end. A line tunnelling out of a deeply nested module crosses everything between;
+   * leaving the group boundary says the same thing and reads far better.
+   */
+  const componentChain = (id: string): string[] => {
+    const chain: string[] = [];
+    let c = componentById.get(id);
+    for (let i = 0; c && i < 8; i++) {
+      chain.push(c.id);
+      c = c.parentId ? componentById.get(c.parentId) : undefined;
+    }
+    return chain; // innermost -> outermost
+  };
+  const attachPoint = (self: string, other: string): string => {
+    const mine = componentChain(self);
+    if (!mine.length) return self;
+    const theirs = new Set(componentChain(other));
+    // walk outward while the ancestor does not swallow the other endpoint
+    let best = self;
+    for (const id of mine) {
+      if (theirs.has(id)) break;
+      best = id;
+    }
+    return best;
+  };
+
+  for (const f of flows) {
+    if (!placed.has(f.sourceId) || !placed.has(f.targetId)) continue;
+    const a = attachPoint(f.sourceId, f.targetId);
+    const b = attachPoint(f.targetId, f.sourceId);
+    if (a !== b) fanSize.set(a, (fanSize.get(a) ?? 0) + 1);
+  }
+
   for (const f of flows) {
     if (!placed.has(f.sourceId) || !placed.has(f.targetId)) continue;
     const semantic = flowSemantic(f.mode, f.protocol);
     usedSemantics.add(semantic);
 
-    const from = nodeBox(f.sourceId)!;
-    const to = nodeBox(f.targetId)!;
+    const srcId = attachPoint(f.sourceId, f.targetId);
+    const tgtId = attachPoint(f.targetId, f.sourceId);
+    if (srcId === tgtId) continue;
+    const from = nodeBox(srcId)!;
+    const to = nodeBox(tgtId)!;
+    if (!from || !to) continue;
     const chip = profile.interfaceChips && f.protocol && hasRoomForChip(from, to, f.protocol);
-    const k = fanIndex.get(f.sourceId) ?? 0;
-    fanIndex.set(f.sourceId, k + 1);
-    const fan = fanSize.get(f.sourceId) ?? 1;
+    const k = fanIndex.get(srcId) ?? 0;
+    fanIndex.set(srcId, k + 1);
+    const fan = fanSize.get(srcId) ?? 1;
     // spread across [-0.7, -0.2] when several edges share this source
     const labelSpread = fan > 1 ? -0.7 + (k / Math.max(1, fan - 1)) * 0.5 : -0.55;
 
@@ -329,13 +430,13 @@ export function generateDrawioXml(
       id: f.id,
       label: esc(f.label ?? (chip ? "" : f.protocol ?? "")),
       style: connectorStyle(semantic, { bidirectional: f.bidirectional }),
-      source: f.sourceId,
-      target: f.targetId,
+      source: srcId,
+      target: tgtId,
       labelPos: f.label ? labelSpread : undefined,
       // edges leaving one node often share their first segment, so separate the
       // labels across the path normal as well as along it
       labelOffset:
-        f.label && fan > 1 ? { x: 0, y: Math.round((k - (fan - 1) / 2) * 20) } : undefined,
+        f.label && fan > 1 ? { x: 0, y: Math.round((k - (fan - 1) / 2) * 26) } : undefined,
       attrs: {
         type: "flow",
         semantic,
@@ -355,7 +456,8 @@ export function generateDrawioXml(
         h: 24,
         // a chip at the midpoint of a cross-zone hop lands inside the target zone,
         // on top of its cards; the gutter between zones is the clear run
-        pos: crossZone ? -0.5 : fan > 1 ? 0.25 : 0,
+        pos: crossZone ? -0.5 : fan > 1 ? 0.3 : 0,
+        offsetY: fan > 1 ? Math.round((k - (fan - 1) / 2) * 26) : 0,
       });
     }
   }
@@ -395,10 +497,12 @@ export function generateDrawioXml(
     });
   }
 
-  const legendEntries = [...buildLegend(model, usedSemantics, zones), ...profile.legend];
-  const legendH = 32 + legendEntries.length * 18;
+  const legendEntries = model.legend
+    ? [...buildLegend(model, usedSemantics, zones), ...profile.legend]
+    : [];
+  const legendH = legendEntries.length ? 32 + legendEntries.length * 18 : 0;
   const legendY = maxY + SPACE.lg;
-  doc.shape(lNotes, {
+  if (legendEntries.length) doc.shape(lNotes, {
     id: "legend",
     label: [`&lt;b&gt;Legend&lt;/b&gt;`, ...legendEntries.map((e) => esc(`— ${e}`))].join("&#xa;"),
     style: legendStyle(),

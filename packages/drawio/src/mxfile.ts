@@ -161,12 +161,12 @@ export class DiagramDoc {
   /** A label attached to an edge (interface chip). */
   edgeLabel(
     layer: Layer,
-    args: { id: string; label: string; style: string; parent: string; w: number; h: number; pos?: number }
+    args: { id: string; label: string; style: string; parent: string; w: number; h: number; pos?: number; offsetY?: number }
   ): void {
     layer.cells.push(
       `        <mxCell id="${esc(args.id)}" value="${esc(args.label)}" style="${args.style}" vertex="1" connectable="0" parent="${esc(args.parent)}">
           <mxGeometry x="${args.pos ?? 0}" relative="1" width="${Math.round(args.w)}" height="${Math.round(args.h)}" as="geometry">
-            <mxPoint as="offset"/>
+            <mxPoint x="0" y="${Math.round(args.offsetY ?? 0)}" as="offset"/>
           </mxGeometry>
         </mxCell>`
     );

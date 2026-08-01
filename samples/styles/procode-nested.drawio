@@ -1,0 +1,234 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Architecture Diagram Platform" version="28.1.2" pages="1">
+  <diagram name="Solution Architecture · L2" id="solution-architecture-l2">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="8" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1584" pageHeight="2248" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" value="Architecture" parent="0"/>
+        <object label="Channels" type="zone" role="neutral" id="zch">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#F7F8FA;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=15;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="40" y="1072" width="96" height="144" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Cloud Platform" type="zone" role="platform" id="zp">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#EEF3FB;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=15;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="224" y="120" width="984" height="2048" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Subaccount" type="zone" role="platform" tenant="multi-cloud" id="zsub">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=13;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zp">
+            <mxGeometry x="24" y="56" width="936" height="1968" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="User&#xa;Business user" type="actor" role="neutral" persona="Business user" id="user">
+          <mxCell style="shape=actor;whiteSpace=wrap;html=1;fillColor=#E9ECEF;strokeColor=#5C6B7A;strokeWidth=1.25;verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;fontStyle=1;" vertex="1" parent="zch">
+            <mxGeometry x="24" y="56" width="48" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;User Interface&lt;/b&gt;&lt;div&gt;&lt;i&gt;UI framework&lt;/i&gt;&lt;/div&gt;" type="component" kind="custom-app" role="application" emphasis="muted" id="ui">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#D8DEE4;fillColor=#FFFFFF;strokeWidth=1.25;dashed=1;dashPattern=4 4;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#8A98A6;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="44" y="56" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Application Router&lt;/b&gt;" type="component" kind="custom-app" role="application" emphasis="muted" id="router">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#D8DEE4;fillColor=#FFFFFF;strokeWidth=1.25;dashed=1;dashPattern=4 4;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#8A98A6;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="44" y="160" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Continuous Integration&lt;/b&gt;" type="component" kind="custom-app" role="application" emphasis="muted" id="cicd">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#D8DEE4;fillColor=#FFFFFF;strokeWidth=1.25;dashed=1;dashPattern=4 4;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#8A98A6;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="44" y="264" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Application Runtime&lt;/b&gt;&lt;div&gt;&lt;i&gt;Managed build &amp; run&lt;/i&gt;&lt;/div&gt;" type="component-group" kind="custom-app" role="application" emphasis="normal" id="build">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#6A4BB8;fillColor=#F2EFFA;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=10;spacingTop=2;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="24" y="1344" width="240" height="320" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Generative AI Hub&lt;/b&gt;" type="component-group" kind="sap-service" role="platform" emphasis="focus" id="hub">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#B0208C;fillColor=#FDEFF8;strokeWidth=2;align=left;verticalAlign=top;spacingLeft=40;spacingTop=2;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="352" y="1272" width="272" height="464" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="hub-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_AI_Core;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EEF3FB;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="hub">
+          <mxGeometry x="8" y="8" width="24" height="24" as="geometry"/>
+        </mxCell>
+        <object label="&lt;b&gt;SAP HANA Cloud&lt;/b&gt;&lt;div&gt;&lt;i&gt;Vector &amp; knowledge graph&lt;/i&gt;&lt;/div&gt;" type="component" kind="database" role="data" emphasis="focus" id="hana">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#B0208C;fillColor=#FFFFFF;strokeWidth=2;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="388" y="1776" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="hana-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_HANA_Cloud;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#E9F6F3;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="hana">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
+        </mxCell>
+        <object label="&lt;b&gt;SAP Destination Service&lt;/b&gt;" type="component" kind="integration" role="integration" emphasis="normal" id="dest">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#1F6F8B;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="388" y="1880" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="dest-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_Destination_service;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EAF4F7;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="dest">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
+        </mxCell>
+        <object label="&lt;b&gt;SAP Connectivity Service&lt;/b&gt;" type="component" kind="integration" role="integration" emphasis="normal" id="conn">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#1F6F8B;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zsub">
+            <mxGeometry x="712" y="1880" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="conn-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_Connectivity_Service;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EAF4F7;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="conn">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
+        </mxCell>
+        <object label="&lt;b&gt;On-Premise Solutions&lt;/b&gt;" type="component" kind="external" role="external" emphasis="normal" id="onprem">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zext">
+            <mxGeometry x="24" y="56" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Cloud Solutions&lt;/b&gt;" type="component" kind="external" role="external" emphasis="normal" id="cloud">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zext">
+            <mxGeometry x="24" y="160" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;3rd Party Applications&lt;/b&gt;" type="component" kind="external" role="external" emphasis="normal" id="third">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zext">
+            <mxGeometry x="24" y="264" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Service Layer&lt;/b&gt;&lt;div&gt;&lt;i&gt;Cloud Application Programming model&lt;/i&gt;&lt;/div&gt;" type="component-group" kind="custom-app" role="application" emphasis="normal" id="code">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#6A4BB8;fillColor=#F2EFFA;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=10;spacingTop=2;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="build">
+            <mxGeometry x="16" y="56" width="208" height="248" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;SAP AI Core&lt;/b&gt;" type="component-group" kind="sap-service" role="platform" emphasis="normal" id="aicore">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#EEF3FB;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=40;spacingTop=2;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="hub">
+            <mxGeometry x="16" y="56" width="240" height="392" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="aicore-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_AI_Core;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EEF3FB;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="aicore">
+          <mxGeometry x="8" y="8" width="24" height="24" as="geometry"/>
+        </mxCell>
+        <object label="Use Case Logic" type="module" kind="custom-app" role="application" emphasis="normal" id="logic">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#6A4BB8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="code">
+            <mxGeometry x="16" y="56" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Data Management" type="module" kind="custom-app" role="application" emphasis="normal" id="data">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#6A4BB8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="code">
+            <mxGeometry x="16" y="128" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Pro-Code Agent" type="module" kind="agent" role="application" emphasis="focus" id="agent">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#B0208C;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="code">
+            <mxGeometry x="16" y="200" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Orchestration&lt;/b&gt;" type="component-group" kind="sap-service" role="platform" emphasis="normal" id="orch">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#EEF3FB;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=10;spacingTop=2;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="aicore">
+            <mxGeometry x="16" y="56" width="208" height="248" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Foundation Model Access" type="module" kind="sap-service" role="platform" emphasis="normal" id="models">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="aicore">
+            <mxGeometry x="32" y="344" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Grounding" type="module" kind="sap-service" role="platform" emphasis="normal" id="ground">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="orch">
+            <mxGeometry x="16" y="56" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Data Masking" type="module" kind="sap-service" role="platform" emphasis="normal" id="mask">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="orch">
+            <mxGeometry x="16" y="128" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="I/O Filtering" type="module" kind="sap-service" role="platform" emphasis="normal" id="filter">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="orch">
+            <mxGeometry x="16" y="200" width="176" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="layer-boundaries" value="Boundaries" parent="0"/>
+        <object label="Reachable Systems" type="boundary:network" role="external" id="zext">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=none;strokeWidth=2.5;dashed=1;dashPattern=8 6;align=right;verticalAlign=top;spacingRight=12;spacingTop=4;fontFamily=Helvetica;fontSize=13;fontStyle=2;fontColor=#5C6B7A;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="layer-boundaries">
+            <mxGeometry x="1296" y="968" width="248" height="352" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="layer-flows" value="Connections" parent="0"/>
+        <object label="Uses" type="flow" semantic="control" protocol="HTTPS" direction="unidirectional" id="q1">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="user" target="build">
+            <mxGeometry x="-0.55" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="q1-interface" value="HTTPS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="q1">
+          <mxGeometry x="-0.5" relative="1" width="56" height="24" as="geometry">
+            <mxPoint x="0" y="0" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="Harmonized API" type="flow" semantic="control" direction="unidirectional" id="q2">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="build" target="hub">
+            <mxGeometry x="-0.7" relative="1" as="geometry"><mxPoint x="0" y="-26" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Persist" type="flow" semantic="control" protocol="SQL" direction="unidirectional" id="q3">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="build" target="hana">
+            <mxGeometry x="-0.44999999999999996" relative="1" as="geometry"><mxPoint x="0" y="0" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="q3-interface" value="SQL" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="q3">
+          <mxGeometry x="0.3" relative="1" width="48" height="24" as="geometry">
+            <mxPoint x="0" y="0" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="Resolve" type="flow" semantic="control" direction="unidirectional" id="q4">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="build" target="dest">
+            <mxGeometry x="-0.19999999999999996" relative="1" as="geometry"><mxPoint x="0" y="26" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Invoke" type="flow" semantic="control" protocol="HTTPS" direction="unidirectional" id="q5">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="dest" target="cloud">
+            <mxGeometry x="-0.7" relative="1" as="geometry"><mxPoint x="0" y="-26" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="q5-interface" value="HTTPS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="q5">
+          <mxGeometry x="-0.5" relative="1" width="56" height="24" as="geometry">
+            <mxPoint x="0" y="-26" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="Tunnel" type="flow" semantic="control" protocol="HTTPS" direction="unidirectional" id="q6">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="conn" target="onprem">
+            <mxGeometry x="-0.55" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="q6-interface" value="HTTPS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="q6">
+          <mxGeometry x="-0.5" relative="1" width="56" height="24" as="geometry">
+            <mxPoint x="0" y="0" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="Route" type="flow" semantic="control" direction="unidirectional" id="q7">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="dest" target="conn">
+            <mxGeometry x="-0.44999999999999996" relative="1" as="geometry"><mxPoint x="0" y="0" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Invoke" type="flow" semantic="control" protocol="REST" direction="unidirectional" id="q8">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="dest" target="third">
+            <mxGeometry x="-0.19999999999999996" relative="1" as="geometry"><mxPoint x="0" y="26" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="q8-interface" value="REST" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="q8">
+          <mxGeometry x="-0.5" relative="1" width="48" height="24" as="geometry">
+            <mxPoint x="0" y="26" as="offset"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="layer-annotations" value="Annotations" parent="0"/>
+        <object label="Pro-Code AI Agents on the Platform" type="title" id="title">
+          <mxCell style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#16202B;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="24" width="1100" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="A pro-code agent runs inside the application runtime, reaches governed models through the AI hub, and calls systems of record through mediated connectivity." type="subtitle" id="subtitle">
+          <mxCell style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=13;fontColor=#5A6B7C;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="60" width="1100" height="36" as="geometry"/>
+          </mxCell>
+        </object>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
