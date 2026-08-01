@@ -32,11 +32,33 @@ export interface ArchitectureActor {
   role?: string;
 }
 
+/** Visual/semantic role a container plays. Drives colour, not vendor branding. */
+export type ArchitectureRole =
+  | "platform"
+  | "application"
+  | "data"
+  | "integration"
+  | "security"
+  | "external"
+  | "edge"
+  | "neutral";
+
+/** A container drawn as a dashed enclosure rather than a filled area. */
+export type BoundaryKind = "trust" | "network" | "tenant" | "compliance";
+
 export interface ArchitectureZone {
   id: string;
   label: string;
   kind: ZoneKind;
   parentId?: string;
+  /** Overrides the role inferred from `kind`. */
+  role?: ArchitectureRole;
+  /** Render as a boundary enclosure (dashed) carrying this meaning. */
+  boundary?: BoundaryKind;
+  /** Deployment environment this zone belongs to (dev / test / prod / region). */
+  environment?: string;
+  /** Tenant or subscription owning the zone. */
+  tenant?: string;
 }
 
 export interface ArchitectureComponent {
@@ -51,6 +73,10 @@ export interface ArchitectureComponent {
   officialName?: string;
   confidence?: number;
   notes?: string;
+  /** Overrides the role inferred from the owning zone. */
+  role?: ArchitectureRole;
+  /** Interfaces this component exposes (drawn as chips on inbound connectors). */
+  exposes?: string[];
 }
 
 export interface ArchitectureFlow {
@@ -70,10 +96,25 @@ export interface ArchitectureAssumption {
   severity: "info" | "warning" | "critical";
 }
 
+/** Diagram conventions the renderer should follow. */
+export type DiagramStyle =
+  | "reference"
+  | "solution"
+  | "integration"
+  | "c4-context"
+  | "c4-container"
+  | "component"
+  | "deployment"
+  | "dataflow"
+  | "sequence"
+  | "enterprise-ai";
+
 export interface ArchitectureModel {
   id: string;
   title: string;
   level: DiagramLevel;
+  /** Rendering convention; defaults to "solution". */
+  style?: DiagramStyle;
   summary: string;
   actors: ArchitectureActor[];
   zones: ArchitectureZone[];

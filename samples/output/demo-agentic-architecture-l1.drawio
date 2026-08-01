@@ -1,94 +1,162 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<mxfile host="app.diagrams.net" agent="SAP Architect Builder" version="28.1.2" pages="1">
-  <diagram name="L1 Overview" id="l1-overview">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="2" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1460" pageHeight="1040" math="0" shadow="0">
+<mxfile host="app.diagrams.net" agent="Architecture Diagram Platform" version="28.1.2" pages="1">
+  <diagram name="Solution Architecture · L1" id="solution-architecture-l1">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="8" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1808" pageHeight="728" math="0" shadow="0">
       <root>
         <mxCell id="0"/>
-        <mxCell id="1" parent="0"/>
-        <mxCell id="title" value="Custom Agentic Architecture (architect-approved)" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontFamily=Arial;fontSize=19;fontStyle=1;fontColor=#1D2D3E;" vertex="1" parent="1">
-          <mxGeometry x="40" y="28" width="1100" height="30" as="geometry"/>
+        <mxCell id="1" value="Architecture" parent="0"/>
+        <object label="User Channel" type="zone" role="neutral" id="zone-user">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#F7F8FA;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=15;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="40" y="180" width="96" height="248" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="SAP BTP" type="zone" role="platform" id="zone-btp">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#EEF3FB;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=15;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="224" y="120" width="1208" height="368" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="SAP Cloud Solutions" type="zone" role="platform" id="zone-sap">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#EEF3FB;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=15;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="1520" y="232" width="248" height="144" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Subaccount" type="zone" role="platform" id="zone-btp-subaccount">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=13;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp">
+            <mxGeometry x="24" y="56" width="1160" height="288" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Custom Agents" type="zone" role="application" id="zone-agents">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=12;absoluteArcSize=1;strokeColor=#6A4BB8;fillColor=#F2EFFA;strokeWidth=1.25;align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;fontFamily=Helvetica;fontSize=13;fontStyle=1;fontColor=#5A6B7C;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
+            <mxGeometry x="600" y="56" width="248" height="144" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Business User&#xa;Requester" type="actor" role="neutral" persona="Requester" id="actor-user">
+          <mxCell style="shape=actor;whiteSpace=wrap;html=1;fillColor=#E9ECEF;strokeColor=#5C6B7A;strokeWidth=1.25;verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;fontStyle=1;" vertex="1" parent="zone-user">
+            <mxGeometry x="24" y="56" width="48" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Solution Architect&#xa;Designer" type="actor" role="neutral" persona="Designer" id="actor-architect">
+          <mxCell style="shape=actor;whiteSpace=wrap;html=1;fillColor=#E9ECEF;strokeColor=#5C6B7A;strokeWidth=1.25;verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center;fontFamily=Helvetica;fontSize=11;fontColor=#16202B;fontStyle=1;" vertex="1" parent="zone-user">
+            <mxGeometry x="24" y="160" width="48" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Joule&lt;/b&gt;&lt;div&gt;&lt;i&gt;Digital Assistant&lt;/i&gt;&lt;/div&gt;" type="component" kind="sap-service" role="platform" product="Joule" confidence="0.82" id="comp-joule">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
+            <mxGeometry x="312" y="96" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="comp-joule-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_Digital_Assistant;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EEF3FB;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="comp-joule">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="subtitle" value="Business user interacts with Joule; custom agents on BTP use tools via MCP and reach S/4HANA through Integration Suite." style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontFamily=Helvetica;fontSize=12;fontColor=#556B82;" vertex="1" parent="1">
-          <mxGeometry x="40" y="62" width="1100" height="32" as="geometry"/>
+        <object label="&lt;b&gt;Procurement Agent&lt;/b&gt;&lt;div&gt;&lt;i&gt;Custom&lt;/i&gt;&lt;/div&gt;" type="component" kind="agent" role="application" confidence="0.7" id="comp-agent">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#6A4BB8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-agents">
+            <mxGeometry x="24" y="56" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;SAP AI Core&lt;/b&gt;&lt;div&gt;&lt;i&gt;Generative AI Hub access&lt;/i&gt;&lt;/div&gt;" type="component" kind="sap-service" role="platform" product="SAP AI Core" confidence="0.65" id="comp-gai">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
+            <mxGeometry x="936" y="96" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="comp-gai-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_AI_Core;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EEF3FB;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="comp-gai">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="zone-user" value="User Channel" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#475E75;fillColor=#F5F6F7;arcSize=24;absoluteArcSize=1;strokeWidth=1.5;fontFamily=Helvetica;align=left;verticalAlign=top;spacingLeft=10;spacingTop=1;fontSize=16;fontStyle=1;fontColor=default;" vertex="1" parent="1">
-          <mxGeometry x="40" y="120" width="220" height="324" as="geometry"/>
+        <object label="&lt;b&gt;SAP Integration Suite&lt;/b&gt;&lt;div&gt;&lt;i&gt;Mediation&lt;/i&gt;&lt;/div&gt;" type="component" kind="integration" role="integration" product="SAP Integration Suite" confidence="0.78" id="comp-is">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#1F6F8B;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
+            <mxGeometry x="936" y="200" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="comp-is-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_Integration_Suite;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EAF4F7;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="comp-is">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="zone-btp" value="SAP BTP" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#0070F2;fillColor=#EBF8FF;arcSize=24;absoluteArcSize=1;strokeWidth=1.5;fontFamily=Helvetica;align=left;verticalAlign=top;spacingLeft=10;spacingTop=1;fontSize=16;fontStyle=1;fontColor=default;" vertex="1" parent="1">
-          <mxGeometry x="360" y="120" width="740" height="584" as="geometry"/>
+        <object label="&lt;b&gt;SAP Cloud Identity Services&lt;/b&gt;&lt;div&gt;&lt;i&gt;IAS / IPS&lt;/i&gt;&lt;/div&gt;" type="component" kind="identity" role="security" product="SAP Cloud Identity Services" confidence="0.6" id="comp-ias">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#1E7A4C;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
+            <mxGeometry x="24" y="96" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="comp-ias-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_Cloud_Identity_Service;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EAF5EF;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="comp-ias">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="zone-sap" value="SAP Cloud Solutions" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#0070F2;fillColor=#EBF8FF;arcSize=24;absoluteArcSize=1;strokeWidth=1.5;fontFamily=Helvetica;align=left;verticalAlign=top;spacingLeft=10;spacingTop=1;fontSize=16;fontStyle=1;fontColor=default;" vertex="1" parent="1">
-          <mxGeometry x="1200" y="120" width="220" height="160" as="geometry"/>
+        <object label="&lt;b&gt;SAP HANA Cloud&lt;/b&gt;&lt;div&gt;&lt;i&gt;Vector Engine&lt;/i&gt;&lt;/div&gt;" type="component" kind="database" role="data" product="SAP HANA Cloud" confidence="0.7" id="comp-hana">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#0E7C6B;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
+            <mxGeometry x="24" y="200" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="comp-hana-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_HANA_Cloud;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#E9F6F3;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="comp-hana">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="zone-btp-subaccount" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;Subaccount&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#0070F2;strokeWidth=1.5;arcSize=24;absoluteArcSize=1;fillColor=#ffffff;fontFamily=Helvetica;align=left;verticalAlign=top;spacingLeft=10;spacingTop=1;fontSize=16;fontStyle=1;fontColor=default;" vertex="1" parent="zone-btp">
-          <mxGeometry x="20" y="52" width="700" height="512" as="geometry"/>
+        <object label="&lt;b&gt;SAP S/4HANA Cloud&lt;/b&gt;&lt;div&gt;&lt;i&gt;System of record&lt;/i&gt;&lt;/div&gt;" type="component" kind="sap-product" role="platform" product="SAP S/4HANA Cloud" confidence="0.85" id="comp-s4">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=left;spacingLeft=56;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-sap">
+            <mxGeometry x="24" y="56" width="200" height="64" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="comp-s4-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=SAP_HANA_Cloud;strokeWidth=1;strokeColor=#D8DEE4;fillColor=#EEF3FB;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="comp-s4">
+          <mxGeometry x="12" y="12" width="40" height="40" as="geometry"/>
         </mxCell>
-        <mxCell id="zone-agents" value="&lt;font style=&quot;font-size: 14px;&quot;&gt;Custom Agents&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#5d36ff;fillColor=#f1ecff;strokeWidth=1.5;arcSize=24;absoluteArcSize=1;fontSize=12;fontFamily=Helvetica;fontColor=default;align=left;verticalAlign=top;spacingLeft=10;spacingTop=1;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-btp-subaccount">
-          <mxGeometry x="20" y="332" width="660" height="160" as="geometry"/>
+        <mxCell id="layer-boundaries" value="Boundaries" parent="0"/>
+
+        <mxCell id="layer-flows" value="Connections" parent="0"/>
+        <object label="Chat" type="flow" semantic="control" protocol="HTTPS" direction="unidirectional" id="flow-user-joule">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="actor-user" target="comp-joule">
+            <mxGeometry x="-0.55" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="flow-user-joule-interface" value="HTTPS" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="flow-user-joule">
+          <mxGeometry x="-0.5" relative="1" width="56" height="24" as="geometry">
+            <mxPoint as="offset"/>
+          </mxGeometry>
         </mxCell>
-        <mxCell id="actor-user" value="Business User&#xa;Requester" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#FFCC99;strokeColor=#475E75;strokeWidth=1.5;verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;" vertex="1" parent="zone-user">
-          <mxGeometry x="60" y="52" width="60" height="76" as="geometry"/>
-        </mxCell>
-        <mxCell id="actor-architect" value="Solution Architect&#xa;Designer" style="shape=actor;whiteSpace=wrap;html=1;fillColor=#FFCC99;strokeColor=#475E75;strokeWidth=1.5;verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;" vertex="1" parent="zone-user">
-          <mxGeometry x="60" y="188" width="60" height="76" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-joule" value="Joule" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;SAPIcon=SAP_Digital_Assistant;" vertex="1" parent="zone-btp-subaccount">
-          <mxGeometry x="558" y="52" width="64" height="64" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-agent" value="&lt;b&gt;Procurement Agent&lt;/b&gt;&lt;div&gt;&lt;i&gt;Custom&lt;/i&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#5D36FF;strokeWidth=1.5;fillColor=#FFFFFF;align=center;verticalAlign=middle;fontSize=12;fontFamily=Helvetica;fontColor=default;arcSize=24;absoluteArcSize=1;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-agents">
-          <mxGeometry x="20" y="52" width="180" height="60" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-gai" value="SAP AI Core" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;SAPIcon=SAP_AI_Core;" vertex="1" parent="zone-btp-subaccount">
-          <mxGeometry x="78" y="212" width="64" height="64" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-is" value="SAP Integration&#xa;Suite" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;SAPIcon=SAP_Integration_Suite;" vertex="1" parent="zone-btp-subaccount">
-          <mxGeometry x="318" y="212" width="64" height="64" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-ias" value="SAP Cloud&#xa;Identity Services" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;SAPIcon=SAP_Cloud_Identity_Service;" vertex="1" parent="zone-btp-subaccount">
-          <mxGeometry x="78" y="52" width="64" height="64" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-hana" value="SAP HANA Cloud" style="shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;SAPIcon=SAP_HANA_Cloud;" vertex="1" parent="zone-btp-subaccount">
-          <mxGeometry x="318" y="52" width="64" height="64" as="geometry"/>
-        </mxCell>
-        <mxCell id="comp-s4" value="&lt;b&gt;SAP S/4HANA Cloud&lt;/b&gt;&lt;div&gt;&lt;i&gt;System of record&lt;/i&gt;&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#0070F2;strokeWidth=1.5;fillColor=#FFFFFF;align=center;verticalAlign=middle;fontSize=12;fontFamily=Helvetica;fontColor=default;arcSize=24;absoluteArcSize=1;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="zone-sap">
-          <mxGeometry x="20" y="52" width="180" height="60" as="geometry"/>
-        </mxCell>
-        <mxCell id="flow-user-joule" value="Chat · HTTPS" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475E75;strokeWidth=1.5;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="actor-user" target="comp-joule">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="flow-joule-agent" value="Delegate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#07838f;strokeWidth=1.5;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="comp-joule" target="comp-agent">
-          <mxGeometry x="-0.6" relative="1" as="geometry"><mxPoint as="offset"/><Array as="points"><mxPoint x="740" y="672"/></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="pill-flow-joule-agent" value="A2A" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;strokeColor=#07838f;fillColor=#dafdf5;strokeWidth=1.5;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=default;resizable=0;points=[];" vertex="1" connectable="0" parent="flow-joule-agent">
+        <object label="Delegate" type="flow" semantic="async" protocol="A2A" direction="unidirectional" id="flow-joule-agent">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1F6F8B;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="comp-joule" target="comp-agent">
+            <mxGeometry x="-0.55" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="flow-joule-agent-interface" value="A2A" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#1F6F8B;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="flow-joule-agent">
           <mxGeometry x="0" relative="1" width="48" height="24" as="geometry">
             <mxPoint as="offset"/>
           </mxGeometry>
         </mxCell>
-        <mxCell id="flow-agent-gai" value="Reason" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475E75;strokeWidth=1.5;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="comp-agent" target="comp-gai">
-          <mxGeometry relative="1" as="geometry"/>
-        </mxCell>
-        <mxCell id="flow-agent-is" value="Tools / APIs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#cc00dc;strokeWidth=1.5;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="comp-agent" target="comp-is">
-          <mxGeometry x="-0.6" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
-        </mxCell>
-        <mxCell id="pill-flow-agent-is" value="MCP / REST" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;strokeColor=#CC00DC;fillColor=#fff0fa;strokeWidth=1.5;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=default;resizable=0;points=[];" vertex="1" connectable="0" parent="flow-agent-is">
-          <mxGeometry x="0" relative="1" width="90" height="24" as="geometry">
+        <object label="Reason" type="flow" semantic="control" direction="unidirectional" id="flow-agent-gai">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="comp-agent" target="comp-gai">
+            <mxGeometry x="-0.7" relative="1" as="geometry"><mxPoint x="0" y="-10" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Tools / APIs" type="flow" semantic="control" protocol="MCP / REST" direction="unidirectional" id="flow-agent-is">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="comp-agent" target="comp-is">
+            <mxGeometry x="-0.19999999999999996" relative="1" as="geometry"><mxPoint x="0" y="10" as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <object label="Business API" type="flow" semantic="control" protocol="OData" direction="unidirectional" id="flow-is-s4">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="comp-is" target="comp-s4">
+            <mxGeometry x="-0.55" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="flow-is-s4-interface" value="OData" style="rounded=1;whiteSpace=wrap;html=1;arcSize=999;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Helvetica;fontSize=11;fontColor=#16202B;" vertex="1" connectable="0" parent="flow-is-s4">
+          <mxGeometry x="-0.5" relative="1" width="56" height="24" as="geometry">
             <mxPoint as="offset"/>
           </mxGeometry>
         </mxCell>
-        <mxCell id="flow-is-s4" value="Business API" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#475E75;strokeWidth=1.5;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="comp-is" target="comp-s4">
-          <mxGeometry x="-0.6" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
-        </mxCell>
-        <mxCell id="pill-flow-is-s4" value="OData" style="rounded=1;whiteSpace=wrap;html=1;arcSize=50;strokeColor=#07838f;fillColor=#dafdf5;strokeWidth=1.5;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=default;resizable=0;points=[];" vertex="1" connectable="0" parent="flow-is-s4">
-          <mxGeometry x="0" relative="1" width="48" height="24" as="geometry">
-            <mxPoint as="offset"/>
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="flow-ias-trust" value="&lt;font color=&quot;#188918&quot; size=&quot;1&quot;&gt;&lt;b&gt;TRUST&lt;/b&gt;&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#188918;strokeWidth=1.5;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=default;labelBackgroundColor=default;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="comp-ias" target="comp-joule">
-          <mxGeometry relative="1" as="geometry"><Array as="points"><mxPoint x="730" y="380"/></Array></mxGeometry>
-        </mxCell>
-        <mxCell id="legend" value="&lt;b&gt;Legend&lt;/b&gt;&#xa;• Blue area — SAP / SAP BTP&#xa;• Grey area — non-SAP / partner / user&#xa;• Indigo area — custom-built domain&#xa;• 64×64 grey tile — official SAP service icon&#xa;• White card — SaaS product or custom component&#xa;• Grey arrow — data / control flow&#xa;• Green edge — trust / authentication&#xa;• Teal pill — agent / async channel&#xa;• Pink pill — MCP tool channel" style="rounded=1;whiteSpace=wrap;html=1;strokeColor=#475E75;fillColor=#FFFFFF;arcSize=24;absoluteArcSize=1;strokeWidth=1.5;fontFamily=Helvetica;align=left;verticalAlign=top;spacingLeft=10;spacingTop=8;fontSize=12;fontColor=default;" vertex="1" parent="1">
-          <mxGeometry x="40" y="784" width="320" height="202" as="geometry"/>
-        </mxCell>
+        <object label="Authenticate" type="flow" semantic="trust" direction="unidirectional" id="flow-ias-trust">
+          <mxCell style="edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E7A4C;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-flows" source="comp-ias" target="comp-joule">
+            <mxGeometry x="-0.55" relative="1" as="geometry"><mxPoint as="offset"/></mxGeometry>
+          </mxCell>
+        </object>
+        <mxCell id="layer-annotations" value="Annotations" parent="0"/>
+        <object label="Custom Agentic Architecture (architect-approved)" type="title" id="title">
+          <mxCell style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#16202B;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="24" width="1100" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Business user interacts with Joule; custom agents on BTP use tools via MCP and reach S/4HANA through Integration Suite." type="subtitle" id="subtitle">
+          <mxCell style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=13;fontColor=#5A6B7C;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="60" width="1100" height="36" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Legend&lt;/b&gt;&#xa;— Users &amp; channels (neutral hue)&#xa;— Platform / hosted services (platform hue)&#xa;— Custom-built application domain (application hue)&#xa;— Control / request&#xa;— Asynchronous channel&#xa;— Trust / authentication&#xa;— Rounded chip — interface / protocol" type="legend" id="legend">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#D8DEE4;fillColor=#FFFFFF;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="528" width="360" height="158" as="geometry"/>
+          </mxCell>
+        </object>
       </root>
     </mxGraphModel>
   </diagram>

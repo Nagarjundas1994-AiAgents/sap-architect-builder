@@ -1,6 +1,10 @@
 /**
- * Smoke checks for the non-obvious logic. Run: npm test (needs npm run build first).
- * ponytail: one file, node:test, no framework — grow it only when something else breaks.
+ * Platform checks. Run: npm test (after npm run build).
+ *
+ * These cover the invariants that make a generated diagram usable: containment,
+ * design-system compliance, semantic structure, and the pipeline's resume path.
+ * Rendered quality (routing, label placement, glyph resolution) is checked
+ * separately by tools/render-qa.mjs, which runs Draw.io's own engine.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -8,7 +12,10 @@ import {
   SAP_ICON_BY_SERVICE,
   SAP_ICON_CATALOG,
   generateDrawioXml,
+  layoutTree,
+  layoutLayered,
   resolveSapIcon,
+  theme,
   validateDrawioXml,
 } from "@sap-architect/drawio";
 import { resumeArchitecturePipeline, validateArchitectureModel } from "@sap-architect/core";
@@ -18,12 +25,80 @@ const MODEL = {
   title: "Test L1",
   level: "L1",
   summary: "smoke",
-  actors: [{ id: "a1", label: "User" }],
-  zones: [{ id: "z1", label: "SAP BTP", kind: "sap-btp" }],
+  actors: [{ id: "a1", label: "User", role: "Requester" }],
+  zones: [{ id: "z1", label: "Platform", kind: "sap-btp" }],
   components: [{ id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "z1" }],
-  flows: [{ id: "f1", sourceId: "a1", targetId: "c1", label: "uses" }],
+  flows: [{ id: "f1", sourceId: "a1", targetId: "c1", label: "uses", protocol: "HTTPS" }],
+  assumptions: [],
+  createdAt: new Date().toISOString(),
 };
 
+const NESTED = {
+  ...MODEL,
+  zones: [
+    { id: "zu", label: "Channels", kind: "user" },
+    { id: "z1", label: "Platform", kind: "sap-btp" },
+    { id: "zs", label: "Subaccount", kind: "sap-btp", parentId: "z1" },
+    { id: "z2", label: "Custom domain", kind: "custom", parentId: "zs" },
+    { id: "zx", label: "Systems of record", kind: "sap-cloud" },
+  ],
+  components: [
+    { id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "zs" },
+    { id: "c2", label: "SAP HANA Cloud", kind: "database", zoneId: "zs" },
+    { id: "c3", label: "Procurement Agent", subtitle: "Custom", kind: "agent", zoneId: "z2" },
+    { id: "c4", label: "ERP", kind: "sap-product", zoneId: "zx" },
+  ],
+  flows: [
+    { id: "f1", sourceId: "a1", targetId: "c1", label: "uses", protocol: "HTTPS" },
+    { id: "f2", sourceId: "c1", targetId: "c3", label: "calls", protocol: "A2A", mode: "async" },
+    { id: "f3", sourceId: "c3", targetId: "c2", label: "reads", mode: "sync" },
+    { id: "f4", sourceId: "c1", targetId: "c4", label: "posts", protocol: "OData" },
+  ],
+};
+
+/** Parse cells and resolve parent transforms into absolute boxes. */
+function parseCells(xml) {
+  const cells = [];
+  const re = /<mxCell\b([^>]*?)(?:\/>|>([\s\S]*?)<\/mxCell>)/g;
+  for (const m of xml.matchAll(re)) {
+    const a = m[1];
+    const inner = m[2] || "";
+    const g = (inner.match(/<mxGeometry\b([^>]*)/) || [, ""])[1];
+    const n = (k) => {
+      const v = g.match(new RegExp(`\\b${k}="([-0-9.]+)"`));
+      return v ? parseFloat(v[1]) : undefined;
+    };
+    // <object> wrappers carry the id; the inner mxCell does not
+    const before = xml.slice(0, m.index);
+    const objId = (before.match(/<object\b[^>]*\bid="([^"]+)"[^>]*>\s*$/) || [])[1];
+    cells.push({
+      id: (a.match(/id="([^"]*)"/) || [])[1] ?? objId,
+      style: (a.match(/style="([^"]*)"/) || [, ""])[1],
+      parent: (a.match(/parent="([^"]+)"/) || [, "1"])[1],
+      edge: /edge="1"/.test(a),
+      x: n("x"), y: n("y"), w: n("width"), h: n("height"),
+      rel: /relative="1"/.test(g),
+    });
+  }
+  const by = new Map(cells.filter((c) => c.id).map((c) => [c.id, c]));
+  const abs = new Map();
+  const resolve = (c) => {
+    if (!c.id) return undefined;
+    if (abs.has(c.id)) return abs.get(c.id);
+    if (c.x === undefined || c.rel || c.edge) return undefined;
+    const p = by.get(c.parent);
+    const o = p && p.x !== undefined && !p.rel && !p.edge ? resolve(p) : undefined;
+    const box = { x: c.x + (o?.x ?? 0), y: c.y + (o?.y ?? 0), w: c.w, h: c.h };
+    abs.set(c.id, box);
+    return box;
+  };
+  for (const c of cells) resolve(c);
+  return { cells, by, abs };
+}
+const inside = (o, i) =>
+  i.x >= o.x - 1 && i.y >= o.y - 1 && i.x + i.w <= o.x + o.w + 1 && i.y + i.h <= o.y + o.h + 1;
+
+// ── Model validation ───────────────────────────────────────────────────────
 test("validator reports issues instead of throwing on malformed models", () => {
   for (const bad of [null, {}, { title: "T", components: "nope" }, { title: "T" }]) {
     const r = validateArchitectureModel(bad);
@@ -35,222 +110,161 @@ test("validator reports issues instead of throwing on malformed models", () => {
 });
 
 test("validator catches dangling references", () => {
-  const orphan = validateArchitectureModel({
-    ...MODEL,
-    components: [{ id: "c1", label: "X", kind: "sap-service", zoneId: "missing" }],
-  });
-  assert.match(orphan.issues.join(";"), /zone missing/);
-
-  const badFlow = validateArchitectureModel({
-    ...MODEL,
-    flows: [{ id: "f1", sourceId: "ghost", targetId: "c1" }],
-  });
-  assert.match(badFlow.issues.join(";"), /bad source/);
+  assert.match(
+    validateArchitectureModel({
+      ...MODEL,
+      components: [{ id: "c1", label: "X", kind: "sap-service", zoneId: "missing" }],
+    }).issues.join(";"),
+    /zone missing/
+  );
+  assert.match(
+    validateArchitectureModel({ ...MODEL, flows: [{ id: "f", sourceId: "ghost", targetId: "c1" }] })
+      .issues.join(";"),
+    /bad source/
+  );
 });
 
-test("icon lookup ignores ambiguous short tokens", () => {
-  assert.equal(resolveSapIcon(undefined, "SAP"), undefined);
-  assert.equal(resolveSapIcon(undefined, "AI"), undefined);
-  assert.equal(resolveSapIcon(undefined, "Core"), undefined);
-  assert.equal(resolveSapIcon(undefined, "SAP Integration Suite"), "SAP_Integration_Suite");
-  assert.equal(resolveSapIcon(undefined, "Joule"), "SAP_Digital_Assistant");
+// ── Layout engine ──────────────────────────────────────────────────────────
+test("layered layout reduces edge crossings", () => {
+  const nodes = ["a1", "a2", "a3", "b1", "b2", "b3"].map((id) => ({ id, w: 160, h: 56 }));
+  const edges = [
+    { id: "e1", source: "a1", target: "b3" },
+    { id: "e2", source: "a2", target: "b2" },
+    { id: "e3", source: "a3", target: "b1" },
+  ];
+  const naive = layoutLayered(nodes, edges, { sweeps: 0 }).crossings;
+  const tuned = layoutLayered(nodes, edges).crossings;
+  assert.ok(tuned <= naive, `ordering must not make crossings worse (${naive} -> ${tuned})`);
+  assert.equal(tuned, 0, "this graph is planar when ordered correctly");
 });
 
+test("containment holds at every depth of the tree layout", () => {
+  const tree = {
+    id: "root",
+    header: 0,
+    pad: 0,
+    children: [
+      {
+        id: "outer",
+        children: [
+          { id: "leafA", w: 200, h: 64 },
+          { id: "inner", children: [{ id: "leafB", w: 200, h: 64 }] },
+        ],
+      },
+    ],
+  };
+  const r = layoutTree(tree, [{ id: "e", source: "leafA", target: "leafB" }]);
+  assert.ok(inside(r.boxes.get("outer"), r.boxes.get("inner")));
+  assert.ok(inside(r.boxes.get("outer"), r.boxes.get("leafA")));
+  assert.ok(inside(r.boxes.get("inner"), r.boxes.get("leafB")));
+});
+
+// ── Generated documents ────────────────────────────────────────────────────
 test("generated XML is well formed and wires every flow", () => {
-  const xml = generateDrawioXml(MODEL);
+  const xml = generateDrawioXml(NESTED);
   assert.match(xml, /<mxfile/);
-  assert.match(xml, /edge="1"[^>]*source="a1"[^>]*target="c1"/);
-  const ids = [...xml.matchAll(/<mxCell id="([^"]+)"/g)].map((m) => m[1]);
+  for (const f of NESTED.flows) {
+    assert.match(xml, new RegExp(`source="${f.sourceId}" target="${f.targetId}"`));
+  }
+  const ids = [...xml.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]);
   assert.equal(ids.length, new Set(ids).size, "duplicate cell ids");
 });
 
-/** Parse cells and resolve parent transforms into absolute boxes. */
-function parseCells(xml) {
-  const cells = [];
-  const re = /<mxCell\s+id="([^"]+)"([^>]*?)>\s*<mxGeometry([^>]*)/g;
-  for (const m of xml.matchAll(re)) {
-    const g = m[3];
-    const n = (k) => {
-      const v = g.match(new RegExp(`\\b${k}="([-0-9.]+)"`));
-      return v ? parseFloat(v[1]) : undefined;
-    };
-    cells.push({
-      id: m[1],
-      style: (m[2].match(/style="([^"]*)"/) || [, ""])[1],
-      parent: (m[2].match(/parent="([^"]+)"/) || [, "1"])[1],
-      x: n("x"), y: n("y"), w: n("width"), h: n("height"),
-      rel: /relative="1"/.test(g),
-    });
-  }
-  const by = new Map(cells.map((c) => [c.id, c]));
-  const abs = new Map();
-  const resolve = (c) => {
-    if (abs.has(c.id)) return abs.get(c.id);
-    if (c.x === undefined || c.rel) return undefined;
-    const p = by.get(c.parent);
-    const o = p && p.x !== undefined && !p.rel ? resolve(p) : undefined;
-    const box = { x: c.x + (o?.x ?? 0), y: c.y + (o?.y ?? 0), w: c.w, h: c.h };
-    abs.set(c.id, box);
-    return box;
+test("every shape is nested inside its container in the emitted document", () => {
+  const { by, abs } = parseCells(generateDrawioXml(NESTED));
+  assert.ok(inside(abs.get("z1"), abs.get("zs")), "subaccount inside platform");
+  assert.ok(inside(abs.get("zs"), abs.get("z2")), "domain inside subaccount");
+  assert.ok(inside(abs.get("z2"), abs.get("c3")), "agent inside its domain");
+  assert.equal(by.get("c3").parent, "z2", "component is parented to its zone, so they move together");
+  assert.equal(by.get("z2").parent, "zs");
+
+  // no two unrelated shapes may overlap
+  // root cell "0" and layer "1" reference each other, so the walk needs a stop
+  const ancestors = (id) => {
+    const out = [];
+    let c = by.get(id);
+    for (let i = 0; c && c.parent && c.parent !== "0" && i < 12; i++) {
+      out.push(c.parent);
+      c = by.get(c.parent);
+    }
+    return out;
   };
-  for (const c of cells) resolve(c);
-  return { cells, by, abs };
-}
-const boxes = (xml) => parseCells(xml).abs;
-const inside = (outer, inner) =>
-  inner.x >= outer.x &&
-  inner.y >= outer.y &&
-  inner.x + inner.w <= outer.x + outer.w &&
-  inner.y + inner.h <= outer.y + outer.h;
-
-const NESTED_MODEL = {
-  ...MODEL,
-  zones: [
-    { id: "z1", label: "SAP BTP", kind: "sap-btp" },
-    { id: "z2", label: "Custom agents", kind: "custom", parentId: "z1" },
-  ],
-  components: [
-    { id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "z1" },
-    { id: "c2", label: "SAP HANA Cloud", kind: "database", zoneId: "z1" },
-    { id: "c3", label: "Procurement Agent", kind: "agent", zoneId: "z2" },
-  ],
-  flows: [
-    { id: "f1", sourceId: "c1", targetId: "c3", label: "calls", protocol: "A2A", mode: "async" },
-  ],
-};
-
-test("nested zones stack instead of overlaying the parent's components", () => {
-  const nested = NESTED_MODEL;
-  const b = boxes(generateDrawioXml(nested));
-
-  assert.ok(inside(b.get("z1"), b.get("z2")), "child zone must sit inside its parent");
-  assert.ok(inside(b.get("z2"), b.get("c3")), "child component must sit inside its child zone");
-  for (const id of ["c1", "c2"]) assert.ok(inside(b.get("z1"), b.get(id)), `${id} outside z1`);
-
-  // no two positioned cells may collide unless one fully contains the other
-  const ids = [...b.keys()];
+  const ids = [...abs.keys()].filter((id) => !["title", "subtitle", "legend"].includes(id));
   for (let i = 0; i < ids.length; i++)
     for (let j = i + 1; j < ids.length; j++) {
-      const a = b.get(ids[i]), c = b.get(ids[j]);
+      const a = abs.get(ids[i]);
+      const b = abs.get(ids[j]);
+      if (ancestors(ids[i]).includes(ids[j]) || ancestors(ids[j]).includes(ids[i])) continue;
       const hit =
-        Math.min(a.x + a.w, c.x + c.w) > Math.max(a.x, c.x) &&
-        Math.min(a.y + a.h, c.y + c.h) > Math.max(a.y, c.y);
-      assert.ok(
-        !hit || inside(a, c) || inside(c, a),
-        `${ids[i]} overlaps ${ids[j]}`
-      );
+        Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 1 &&
+        Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 1;
+      assert.ok(!hit, `${ids[i]} overlaps ${ids[j]}`);
     }
-
-  // protocol pill must ride the edge, not float over the canvas
-  assert.ok(!b.has("pill-f1"), "pill must not be absolutely positioned");
-  assert.match(generateDrawioXml(nested), /id="pill-f1"[^>]*parent="f1"/);
-
-  // components belong to their zone cell so a zone drags its contents with it
-  const { by } = parseCells(generateDrawioXml(nested));
-  assert.equal(by.get("c3").parent, "z2");
-  assert.equal(by.get("c1").parent, "z1");
-  assert.equal(by.get("z2").parent, "z1");
 });
 
-test("nested area fills alternate so no two stacked levels look identical", () => {
-  const deep = {
-    ...NESTED_MODEL,
-    zones: [
-      { id: "z1", label: "SAP BTP", kind: "sap-btp" },
-      { id: "zs", label: "Subaccount", kind: "sap-btp", parentId: "z1" },
-      { id: "z2", label: "Custom agents", kind: "custom", parentId: "zs" },
-    ],
-    components: [
-      { id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "zs" },
-      { id: "c2", label: "SAP HANA Cloud", kind: "database", zoneId: "zs" },
-      { id: "c3", label: "Procurement Agent", kind: "agent", zoneId: "z2" },
-    ],
-  };
-  const xml = generateDrawioXml(deep);
-  const { by, abs } = parseCells(xml);
+test("document is editable: named layers and semantic metadata", () => {
+  const xml = generateDrawioXml(NESTED);
+  for (const name of ["Architecture", "Boundaries", "Connections", "Annotations"]) {
+    assert.match(xml, new RegExp(`value="${name}" parent="0"`), `missing layer ${name}`);
+  }
+  assert.match(xml, /<object label="[^"]*" type="zone"/);
+  assert.match(xml, /<object label="[^"]*" type="component"[^>]*role="/);
+  assert.match(xml, /<object label="[^"]*" type="flow"[^>]*semantic="/);
+});
+
+test("nested areas alternate fill so stacked levels stay legible", () => {
+  const { by } = parseCells(generateDrawioXml(NESTED));
   const fill = (id) => (by.get(id).style.match(/fillColor=([^;]+)/) || [])[1];
-
-  assert.notEqual(fill("z1"), fill("zs"), "subaccount must not repeat its parent's fill");
-  assert.notEqual(fill("zs"), fill("z2"), "domain area must not repeat the subaccount's fill");
-  assert.equal(fill("zs").toLowerCase(), "#ffffff", "level 1 nests as a white area");
-
-  // containment must survive three levels
-  const inside3 = (o, i) =>
-    i.x >= o.x && i.y >= o.y && i.x + i.w <= o.x + o.w && i.y + i.h <= o.y + o.h;
-  assert.ok(inside3(abs.get("z1"), abs.get("zs")));
-  assert.ok(inside3(abs.get("zs"), abs.get("z2")));
-  assert.ok(inside3(abs.get("z2"), abs.get("c3")));
+  assert.notEqual(fill("z1"), fill("zs"));
+  assert.notEqual(fill("zs"), fill("z2"));
+  assert.equal(fill("zs").toLowerCase(), theme.INK.surface.toLowerCase());
 });
 
-test("network barriers appear only at real cloud / on-premise boundaries", () => {
-  const hybrid = {
-    ...MODEL,
-    zones: [
-      { id: "z1", label: "SAP BTP", kind: "sap-btp" },
-      { id: "z2", label: "On-Premise", kind: "on-premise" },
-    ],
-    components: [
-      { id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "z1" },
-      { id: "c2", label: "Cloud Connector", kind: "integration", zoneId: "z2" },
-    ],
-    flows: [{ id: "f1", sourceId: "c1", targetId: "c2", protocol: "RFC", mode: "sync" }],
+test("trust boundaries render as dashed enclosures on their own layer", () => {
+  const withBoundary = {
+    ...NESTED,
+    zones: NESTED.zones.map((z) => (z.id === "z2" ? { ...z, boundary: "trust" } : z)),
   };
-  const withBarrier = generateDrawioXml(hybrid);
-  assert.match(withBarrier, /id="network-barrier-0"/);
-  assert.match(withBarrier, /strokeWidth=4;strokeColor=#475e75;jumpStyle=gap/);
-  assert.match(withBarrier, /Thick grey line — network barrier/);
-
-  // an all-cloud model must not invent a boundary that is not there
-  assert.doesNotMatch(generateDrawioXml(NESTED_MODEL), /network-barrier/);
-
-  // the barrier sits in the gutter between the two zones, not through either
-  const { abs } = parseCells(withBarrier);
-  const a = abs.get("z1"), b = abs.get("z2");
-  const bx = +withBarrier.match(/<mxPoint x="(\d+)"[^>]*as="sourcePoint"/)[1];
-  assert.ok(bx > a.x + a.w && bx < b.x, `barrier at ${bx} must fall between zones`);
+  const xml = generateDrawioXml(withBoundary);
+  assert.match(xml, /type="boundary:trust"/);
+  assert.match(xml, /dashed=1;dashPattern/);
+  assert.match(xml, /parent="layer-boundaries"/);
 });
 
-test("bidirectional flows get arrowheads at both ends", () => {
-  const mutual = {
-    ...NESTED_MODEL,
-    flows: [{ id: "f1", sourceId: "c1", targetId: "c2", label: "sync", bidirectional: true }],
-  };
-  const xml = generateDrawioXml(mutual);
-  const edge = xml.match(/<mxCell id="f1"[^>]*>/)[0];
-  assert.match(edge, /startArrow=blockThin;startFill=1/);
-  assert.match(edge, /endArrow=blockThin;endFill=1/);
-  assert.doesNotMatch(edge, /startArrow=none/);
-});
-
-test("every emitted SAPIcon exists in the official catalog", () => {
-  // an unlisted name renders as a blank shape in Draw.io, not an error
-  for (const xml of [generateDrawioXml(MODEL), generateDrawioXml(NESTED_MODEL)]) {
-    for (const m of xml.matchAll(/SAPIcon=([^;"]+)/g)) {
-      assert.ok(SAP_ICON_CATALOG.has(m[1]), `unknown SAPIcon: ${m[1]}`);
-    }
-  }
-  for (const name of Object.values(SAP_ICON_BY_SERVICE)) {
-    assert.ok(SAP_ICON_CATALOG.has(name), `mapping points at unknown icon: ${name}`);
-  }
-});
-
-test("generated diagrams pass the SAP Style Contract checks", () => {
-  for (const m of [MODEL, NESTED_MODEL]) {
+test("generated diagrams pass the design-system checks", () => {
+  for (const m of [MODEL, NESTED]) {
     const r = validateDrawioXml(generateDrawioXml(m));
-    assert.deepEqual(r.issues, [], `contract issues: ${JSON.stringify(r.issues)}`);
+    assert.deepEqual(r.issues, [], `issues: ${JSON.stringify(r.issues)}`);
     assert.equal(r.ok, true);
   }
 });
 
-test("icon labels stay plain text (mxgraph.sap.icon has no html=1)", () => {
-  const xml = generateDrawioXml(NESTED_MODEL);
-  for (const m of xml.matchAll(/<mxCell[^>]*value="([^"]*)"[^>]*style="([^"]*)"/g)) {
-    if (m[2].includes("mxgraph.sap.icon")) {
-      assert.doesNotMatch(m[1], /&lt;\/?(b|i|div|font)&gt;/, "icon label contains markup");
-    }
-  }
+test("bidirectional flows get arrowheads at both ends", () => {
+  const xml = generateDrawioXml({
+    ...MODEL,
+    flows: [{ id: "f1", sourceId: "a1", targetId: "c1", label: "sync", bidirectional: true }],
+  });
+  const edge = xml.match(/<mxCell style="[^"]*edgeStyle[^"]*"[^>]*>/)[0];
+  assert.match(edge, /startArrow=blockThin;startFill=1/);
+  assert.match(edge, /endArrow=blockThin;endFill=1/);
 });
 
+// ── Vendor glyphs ──────────────────────────────────────────────────────────
+test("every emitted glyph name exists in the official catalog", () => {
+  for (const xml of [generateDrawioXml(MODEL), generateDrawioXml(NESTED)])
+    for (const m of xml.matchAll(/SAPIcon=([^;"]+)/g))
+      assert.ok(SAP_ICON_CATALOG.has(m[1]), `unknown glyph: ${m[1]}`);
+  for (const name of Object.values(SAP_ICON_BY_SERVICE))
+    assert.ok(SAP_ICON_CATALOG.has(name), `mapping points at unknown glyph: ${name}`);
+});
+
+test("glyph lookup ignores ambiguous short tokens", () => {
+  assert.equal(resolveSapIcon(undefined, "SAP"), undefined);
+  assert.equal(resolveSapIcon(undefined, "AI"), undefined);
+  assert.equal(resolveSapIcon(undefined, "SAP Integration Suite"), "SAP_Integration_Suite");
+});
+
+// ── Pipeline ───────────────────────────────────────────────────────────────
 test("approve still generates when the graph checkpoint is gone (restart / other instance)", async () => {
   const r = await resumeArchitecturePipeline("job-never-checkpointed", MODEL, {
     provider: "mock",

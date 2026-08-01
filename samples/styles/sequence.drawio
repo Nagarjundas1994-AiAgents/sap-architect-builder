@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Architecture Diagram Platform" version="28.1.2" pages="1">
+  <diagram name="Sequence" id="sequence">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="8" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2256" pageHeight="776" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" value="Participants" parent="0"/>
+        <object label="&lt;b&gt;Buyer&lt;/b&gt;&lt;div&gt;&lt;i&gt;Requester&lt;/i&gt;&lt;/div&gt;" type="participant" role="neutral" kind="actor" id="a1">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="40" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="a1" id="a1-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="136" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Order Portal&lt;/b&gt;&lt;div&gt;&lt;i&gt;Web app&lt;/i&gt;&lt;/div&gt;" type="participant" role="platform" kind="custom-app" id="ui">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="312" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="ui" id="ui-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="408" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Enrichment Agent&lt;/b&gt;&lt;div&gt;&lt;i&gt;Custom&lt;/i&gt;&lt;/div&gt;" type="participant" role="platform" kind="agent" id="ag">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="584" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="ag" id="ag-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="680" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;SAP HANA Cloud&lt;/b&gt;&lt;div&gt;&lt;i&gt;Operational store&lt;/i&gt;&lt;/div&gt;" type="participant" role="data" kind="database" id="db">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#0E7C6B;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="856" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="db" id="db-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="952" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;SAP Integration Suite&lt;/b&gt;&lt;div&gt;&lt;i&gt;Mediation&lt;/i&gt;&lt;/div&gt;" type="participant" role="integration" kind="integration" id="is">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#1F6F8B;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="1128" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="is" id="is-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="1224" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;SAP S/4HANA Cloud&lt;/b&gt;&lt;div&gt;&lt;i&gt;System of record&lt;/i&gt;&lt;/div&gt;" type="participant" role="platform" kind="sap-product" id="erp">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#2F5EA8;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="1400" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="erp" id="erp-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="1496" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;SAP Cloud Identity Services&lt;/b&gt;&lt;div&gt;&lt;i&gt;IAS&lt;/i&gt;&lt;/div&gt;" type="participant" role="security" kind="identity" id="ias">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#1E7A4C;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="1672" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="ias" id="ias-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="1768" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Operations&lt;/b&gt;&lt;div&gt;&lt;i&gt;Approver&lt;/i&gt;&lt;/div&gt;" type="participant" role="neutral" kind="actor" id="a2">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#5C6B7A;fillColor=#FFFFFF;strokeWidth=1.25;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=12;fontColor=#16202B;fontStyle=1;container=0;recursiveResize=0;collapsible=0;" vertex="1" parent="1">
+            <mxGeometry x="1944" y="128" width="200" height="56" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="" type="lifeline" participant="a2" id="a2-lifeline">
+          <mxCell style="html=1;shape=line;direction=north;strokeColor=#D8DEE4;strokeWidth=1.25;dashed=1;dashPattern=4 4;labelPosition=center;verticalLabelPosition=bottom;align=center;" vertex="1" parent="1">
+            <mxGeometry x="2040" y="184" width="8" height="448" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="layer-messages" value="Messages" parent="0"/>
+        <object label="" type="activation" of="ui" id="f1-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#DCE6F6;strokeColor=#2F5EA8;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="407" y="232" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f1" value="1. Submit · HTTPS" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="240" as="sourcePoint"/>
+            <mxPoint x="412" y="240" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="" type="activation" of="ag" id="f2-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#DCE6F6;strokeColor=#2F5EA8;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="679" y="288" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f2" value="2. Enrich · REST" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="412" y="296" as="sourcePoint"/>
+            <mxPoint x="684" y="296" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="" type="activation" of="db" id="f3-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#D2EDE7;strokeColor=#0E7C6B;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="951" y="344" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f3" value="3. Lookup · SQL" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="684" y="352" as="sourcePoint"/>
+            <mxPoint x="956" y="352" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="" type="activation" of="is" id="f4-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#D3E8EF;strokeColor=#1F6F8B;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="1223" y="400" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f4" value="4. Dispatch · A2A" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1F6F8B;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="684" y="408" as="sourcePoint"/>
+            <mxPoint x="1228" y="408" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="" type="activation" of="erp" id="f5-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#DCE6F6;strokeColor=#2F5EA8;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="1495" y="456" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f5" value="5. Create order · OData" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1228" y="464" as="sourcePoint"/>
+            <mxPoint x="1500" y="464" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="" type="activation" of="ui" id="f6-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#DCE6F6;strokeColor=#2F5EA8;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="407" y="512" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f6" value="6. Authenticate" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#1E7A4C;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="1772" y="520" as="sourcePoint"/>
+            <mxPoint x="412" y="520" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <object label="" type="activation" of="ui" id="f7-activation">
+          <mxCell style="html=1;rounded=0;fillColor=#DCE6F6;strokeColor=#2F5EA8;strokeWidth=1;" vertex="1" parent="layer-messages">
+            <mxGeometry x="407" y="568" width="10" height="48" as="geometry"/>
+          </mxCell>
+        </object>
+        <mxCell id="f7" value="7. Approve · HTTPS" style="edgeStyle=none;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#2F5EA8;strokeWidth=1.25;endArrow=blockThin;endFill=1;startArrow=none;align=center;verticalAlign=middle;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;labelBackgroundColor=#FFFFFF;" edge="1" parent="layer-messages">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="2044" y="576" as="sourcePoint"/>
+            <mxPoint x="412" y="576" as="targetPoint"/>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="layer-annotations" value="Annotations" parent="0"/>
+        <object label="Order-to-Cash Automation" type="title" id="title">
+          <mxCell style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;align=left;verticalAlign=middle;fontFamily=Helvetica;fontSize=20;fontStyle=1;fontColor=#16202B;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="24" width="1000" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="Buyer submits an order; an agent enriches it, integration mediates, ERP records it." type="subtitle" id="subtitle">
+          <mxCell style="text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;align=left;verticalAlign=top;fontFamily=Helvetica;fontSize=13;fontColor=#5A6B7C;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="60" width="1000" height="32" as="geometry"/>
+          </mxCell>
+        </object>
+        <object label="&lt;b&gt;Legend&lt;/b&gt;&#xa;— Time flows downward; messages are numbered&#xa;— Vertical dashed line is a participant's lifeline&#xa;— Filled bar shows the participant is active" type="legend" id="legend">
+          <mxCell style="rounded=1;whiteSpace=wrap;html=1;arcSize=8;absoluteArcSize=1;strokeColor=#D8DEE4;fillColor=#FFFFFF;strokeWidth=1;align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;fontFamily=Helvetica;fontSize=11;fontColor=#5A6B7C;" vertex="1" parent="layer-annotations">
+            <mxGeometry x="40" y="656" width="360" height="84" as="geometry"/>
+          </mxCell>
+        </object>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
