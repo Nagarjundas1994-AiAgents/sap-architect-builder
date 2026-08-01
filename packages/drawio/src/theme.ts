@@ -267,6 +267,69 @@ export function separatorStyle(): string {
   ]);
 }
 
+/** A platform service drawn as a glyph with its label beneath, rather than a card. */
+export function iconNodeStyle(role: Role, emphasis: Emphasis = "normal"): string {
+  const c = PALETTE[role];
+  return join([
+    "ellipse;whiteSpace=wrap;html=1;",
+    `fillColor=${emphasis === "muted" ? INK.surface : c.wash};strokeColor=${
+      emphasis === "muted" ? INK.hairline : c.line
+    };strokeWidth=${STROKE.regular};`,
+    "verticalLabelPosition=bottom;verticalAlign=top;labelPosition=center;align=center;",
+    `fontFamily=${FONT};fontSize=${TYPE.cardMeta};fontStyle=1;`,
+    `fontColor=${emphasis === "muted" ? INK.faint : INK.strong};`,
+  ]);
+}
+
+/** Multi-instance marker: the card sits on top of two offset copies. */
+export function stackShadowStyle(role: Role): string {
+  const c = PALETTE[role];
+  return join([
+    "rounded=1;whiteSpace=wrap;html=1;",
+    `arcSize=${RADIUS.card};absoluteArcSize=1;`,
+    `strokeColor=${c.line};fillColor=${INK.surface};strokeWidth=${STROKE.regular};`,
+    "opacity=60;",
+  ]);
+}
+
+/** Title block along the bottom edge: what this is, when it changed, which revision. */
+export function footerRuleStyle(): string {
+  return join([
+    "edgeStyle=none;html=1;rounded=0;endArrow=none;endFill=0;",
+    `strokeWidth=${STROKE.hairline};strokeColor=${INK.hairline};`,
+  ]);
+}
+
+export function footerLabelStyle(strong = false): string {
+  return join([
+    "text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;",
+    "align=left;verticalAlign=middle;",
+    `fontFamily=${FONT};fontSize=${strong ? TYPE.subtitle : TYPE.cardMeta};`,
+    `fontStyle=${strong ? 1 : 2};fontColor=${strong ? INK.strong : INK.muted};`,
+  ]);
+}
+
+/**
+ * Vertical rule marking a network or ownership separation. `jumpStyle` makes
+ * connectors visibly hop the rule, so a crossing reads as a deliberate traversal of
+ * the boundary rather than an accident of layout.
+ */
+export function dividerStyle(): string {
+  return join([
+    "edgeStyle=none;html=1;rounded=0;endArrow=none;endFill=0;",
+    `strokeWidth=${STROKE.boundary};strokeColor=${INK.faint};`,
+    "jumpStyle=gap;jumpSize=8;",
+  ]);
+}
+
+export function dividerLabelStyle(): string {
+  return join([
+    "text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;",
+    "align=center;verticalAlign=middle;",
+    `fontFamily=${FONT};fontSize=${TYPE.cardMeta};fontStyle=1;fontColor=${INK.faint};`,
+  ]);
+}
+
 export function titleStyle(): string {
   return join([
     "text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;",

@@ -23,6 +23,12 @@ import {
   areaStyle,
   boundaryStyle,
   cardStyle,
+  dividerLabelStyle,
+  dividerStyle,
+  footerLabelStyle,
+  footerRuleStyle,
+  iconNodeStyle,
+  stackShadowStyle,
   groupCardStyle,
   moduleStyle,
   type Emphasis,
@@ -44,6 +50,9 @@ const MODULE_W = 176;
 const MODULE_H = 32;
 const GROUP_HEADER = 40;
 const GLYPH_SM = 24;
+const ICON_NODE = 56;
+const ICON_NODE_H = 92; // glyph + label beneath
+const FOOTER_H = 56;
 const ACTOR_W = 48;
 const ACTOR_H = 64;
 const HEADER_H = 96;
@@ -146,6 +155,7 @@ export function generateDrawioXml(
   const buildComponent = (c: ArchitectureComponent, depth: number): TreeNode => {
     const kids = childComponents(c.id);
     if (!kids.length) {
+      if (c.shape === "icon") return { id: c.id, w: ICON_NODE + SPACE.lg, h: ICON_NODE_H };
       return depth === 0
         ? { id: c.id, w: CARD_W, h: CARD_H }
         : { id: c.id, w: MODULE_W, h: MODULE_H };
@@ -311,6 +321,29 @@ export function generateDrawioXml(
         : resolveSapIcon(c.officialName, c.label, c.sapIcon);
 
     let style: string;
+    if (!group && c.shape === "icon") {
+      const g = resolveSapIcon(c.officialName, c.label, c.sapIcon);
+      const cx = box.x - origin.x + Math.round((box.w - ICON_NODE) / 2);
+      doc.shape(lArch, {
+        id: c.id,
+        label: esc(c.officialName ?? c.label),
+        style: iconNodeStyle(role, emphasis),
+        x: cx,
+        y: box.y - origin.y,
+        w: ICON_NODE,
+        h: ICON_NODE,
+        parent,
+        attrs: { type: "service", kind: c.kind, role, emphasis, product: c.officialName },
+      });
+      if (g) {
+        lArch.cells.push(
+          `        <mxCell id="${esc(c.id)}-glyph" value="" style="shape=mxgraph.sap.icon;SAPIcon=${g};strokeWidth=1;strokeColor=none;fillColor=none;gradientColor=none;aspect=fixed;html=1;" vertex="1" parent="${esc(c.id)}">
+          <mxGeometry x="${Math.round((ICON_NODE - GLYPH) / 2)}" y="${Math.round((ICON_NODE - GLYPH) / 2)}" width="${GLYPH}" height="${GLYPH}" as="geometry"/>
+        </mxCell>`
+        );
+      }
+      continue;
+    }
     if (group) {
       style = groupCardStyle(role, emphasis);
       if (glyph) style = style.replace("spacingLeft=10;", `spacingLeft=${GLYPH_SM + SPACE.sm};`);
@@ -345,6 +378,16 @@ export function generateDrawioXml(
       },
     });
 
+    if (c.shape === "stack" && !group) {
+      for (const [i, off] of [[1, 5], [2, 10]] as Array<[number, number]>) {
+        lArch.cells.push(
+          `        <mxCell id="${esc(c.id)}-stack${i}" value="" style="${stackShadowStyle(role)}" vertex="1" parent="${esc(parent)}">
+          <mxGeometry x="${box.x - origin.x + off}" y="${box.y - origin.y - off}" width="${box.w}" height="${box.h}" as="geometry"/>
+        </mxCell>`
+        );
+      }
+    }
+
     if (glyph) {
       const size = group ? GLYPH_SM : GLYPH;
       const gy = group ? Math.round((GROUP_HEADER - size) / 2) : Math.round((box.h - size) / 2);
@@ -371,6 +414,7 @@ export function generateDrawioXml(
     return chain.length ? chain[chain.length - 1].id : zid;
   };
 
+  let labelLane = 0;
   const usedSemantics = new Set<FlowSemantic>();
   const placed = new Set([...components.map((c) => c.id), ...actors.map((a) => a.id)]);
 
@@ -420,23 +464,34 @@ export function generateDrawioXml(
     const to = nodeBox(tgtId)!;
     if (!from || !to) continue;
     const chip = profile.interfaceChips && f.protocol && hasRoomForChip(from, to, f.protocol);
+    const lane = labelLane++;
     const k = fanIndex.get(srcId) ?? 0;
     fanIndex.set(srcId, k + 1);
     const fan = fanSize.get(srcId) ?? 1;
     // spread across [-0.7, -0.2] when several edges share this source
     const labelSpread = fan > 1 ? -0.7 + (k / Math.max(1, fan - 1)) * 0.5 : -0.55;
 
+    const tagged = semantic === "trust";
+    const crossesZone = topZoneOf(f.sourceId) !== topZoneOf(f.targetId);
+    const labelAt = labelSpread;
     doc.edge(lFlows, {
       id: f.id,
-      label: esc(f.label ?? (chip ? "" : f.protocol ?? "")),
+      label: tagged || chip ? "" : esc(f.label ?? f.protocol ?? ""),
       style: connectorStyle(semantic, { bidirectional: f.bidirectional }),
       source: srcId,
       target: tgtId,
-      labelPos: f.label ? labelSpread : undefined,
+      labelPos: !tagged && !chip && f.label ? labelAt : undefined,
       // edges leaving one node often share their first segment, so separate the
       // labels across the path normal as well as along it
       labelOffset:
-        f.label && fan > 1 ? { x: 0, y: Math.round((k - (fan - 1) / 2) * 26) } : undefined,
+        !tagged && !chip && f.label
+          ? {
+              x: 0,
+              y:
+                (fan > 1 ? Math.round((k - (fan - 1) / 2) * 32) : 0) +
+                ((lane % 3) - 1) * 14,
+            }
+          : undefined,
       attrs: {
         type: "flow",
         semantic,
@@ -445,8 +500,29 @@ export function generateDrawioXml(
       },
     });
 
+    // A tag wider than the run it sits on will always spill onto the target. The
+    // green connector already states "trust"; the tag is an addition, not a
+    // requirement, so it is dropped when it cannot sit clear.
+    const tagText = f.label ?? "Trust";
+    const tagW = Math.max(48, tagText.length * 7 + 16);
+    if (tagged && hasRoomForChip(from, to, tagText.padEnd(Math.ceil(tagW / 8), " "))) {
+      const text = tagText;
+      doc.edgeLabel(lFlows, {
+        id: `${f.id}-tag`,
+        label: text,
+        style: chipStyle("trust"),
+        parent: f.id,
+        w: tagW,
+        h: 22,
+        // sits near the end it governs, the way a trust marker reads on a boundary
+        // just short of the target, lifted clear of the line
+        pos: 0.62,
+        offsetY: -16 + (fan > 1 ? Math.round((k - (fan - 1) / 2) * 26) : 0),
+      });
+    }
+
     if (chip) {
-      const crossZone = topZoneOf(f.sourceId) !== topZoneOf(f.targetId);
+      const crossZone = crossesZone;
       doc.edgeLabel(lFlows, {
         id: `${f.id}-interface`,
         label: f.protocol!,
@@ -514,10 +590,87 @@ export function generateDrawioXml(
     attrs: { type: "legend" },
   });
 
+  // ── Network / ownership dividers ─────────────────────────────────────────
+  for (const [i, d] of (model.dividers ?? []).entries()) {
+    const after = zoneBox.get(d.afterZoneId);
+    if (!after) continue;
+    const x = Math.round(after.x + after.w + SPACE.lg);
+    doc.freeEdge(lBounds, {
+      id: `divider-${i}`,
+      style: dividerStyle(),
+      from: { x, y: HEADER_H },
+      to: { x, y: maxY + SPACE.sm },
+    });
+    doc.shape(lBounds, {
+      id: `divider-${i}-label`,
+      label: esc(d.label.toUpperCase()),
+      style: dividerLabelStyle(),
+      x: x - 60,
+      y: HEADER_H - 26,
+      w: 120,
+      h: 20,
+      parent: lBounds.id,
+      attrs: { type: "divider", boundary: "network" },
+    });
+    maxX = Math.max(maxX, x + SPACE.sm);
+  }
+
+  // ── Title block ──────────────────────────────────────────────────────────
+  const contentRight = Math.max(maxX, 900);
+  let footerBottom = Math.max(maxY, legendEntries.length ? legendY + legendH : 0);
+  if (model.footer) {
+    const f = model.footer;
+    const y = footerBottom + SPACE.lg;
+    doc.freeEdge(lNotes, {
+      id: "footer-rule",
+      style: footerRuleStyle(),
+      from: { x: SPACE.lg, y },
+      to: { x: contentRight, y },
+    });
+    doc.shape(lNotes, {
+      id: "footer-label",
+      label: esc(f.label ?? "Architecture"),
+      style: footerLabelStyle(true),
+      x: SPACE.lg,
+      y: y + SPACE.sm,
+      w: 420,
+      h: 20,
+      parent: lNotes.id,
+      attrs: { type: "footer" },
+    });
+    if (f.updated) {
+      doc.shape(lNotes, {
+        id: "footer-updated",
+        label: esc(`Last update ${f.updated}`),
+        style: footerLabelStyle(false),
+        x: SPACE.lg,
+        y: y + SPACE.sm + 22,
+        w: 420,
+        h: 18,
+        parent: lNotes.id,
+        attrs: { type: "footer" },
+      });
+    }
+    if (f.reference) {
+      doc.shape(lNotes, {
+        id: "footer-reference",
+        label: esc(f.reference),
+        style: footerLabelStyle(false).replace("align=left;", "align=center;"),
+        x: Math.round(contentRight / 2) - 100,
+        y: y + SPACE.sm + 12,
+        w: 200,
+        h: 18,
+        parent: lNotes.id,
+        attrs: { type: "footer", reference: f.reference },
+      });
+    }
+    footerBottom = y + FOOTER_H;
+  }
+
   // canvas is measured from content, so the page size is set once at the end
   doc.resize(
     options.pageWidth ?? ceilTo(maxX + SPACE.lg, GRID),
-    options.pageHeight ?? ceilTo(legendY + legendH + SPACE.lg, GRID)
+    options.pageHeight ?? ceilTo(footerBottom + SPACE.lg, GRID)
   );
   return doc.toXml();
 }

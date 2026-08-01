@@ -80,6 +80,8 @@ window.__probe = function () {
   for (let i = 0; i < content.length; i++) for (let j = i + 1; j < content.length; j++) {
     const a = content[i], b = content[j];
     if (related(a, b) || (a.parent && a.parent.edge) || (b.parent && b.parent.edge)) continue;
+    // a multi-instance marker is drawn as deliberately offset copies
+    if (/-stack\d+$/.test(a.id) || /-stack\d+$/.test(b.id)) continue;
     const A = vw.getState(a), B = vw.getState(b);
     if (ov({x:A.x,y:A.y,w:A.width,h:A.height}, {x:B.x,y:B.y,w:B.width,h:B.height}))
       shapeClashes.push(a.id + ' <> ' + b.id);

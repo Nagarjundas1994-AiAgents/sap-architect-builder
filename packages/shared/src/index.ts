@@ -87,6 +87,12 @@ export interface ArchitectureComponent {
    * keeps surrounding platform context visible without competing for attention.
    */
   emphasis?: "focus" | "normal" | "muted";
+  /**
+   * How the object is drawn. `icon` is a glyph with its label beneath and no card —
+   * the conventional treatment for a pass-through platform service. `stack` marks a
+   * multi-instance component.
+   */
+  shape?: "card" | "icon" | "stack";
 }
 
 export interface ArchitectureFlow {
@@ -127,6 +133,10 @@ export interface ArchitectureModel {
   style?: DiagramStyle;
   /** Draw a legend box. Off by default: a consistent grammar should not need one. */
   legend?: boolean;
+  /** Title-block strip along the bottom edge. */
+  footer?: { label?: string; updated?: string; reference?: string };
+  /** Vertical rules marking a network or ownership separation between zone columns. */
+  dividers?: Array<{ label: string; afterZoneId: string }>;
   summary: string;
   actors: ArchitectureActor[];
   zones: ArchitectureZone[];
