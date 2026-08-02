@@ -153,6 +153,12 @@ export interface GenerateOptions {
   /** Force canvas size; by default it is measured from the content. */
   pageWidth?: number;
   pageHeight?: number;
+  /**
+   * Widest the drawing may get relative to its height before long flow chains are
+   * wrapped into stacked bands. 0 disables wrapping and restores the plain
+   * left-to-right ribbon.
+   */
+  targetRatio?: number;
 }
 
 
@@ -249,6 +255,39 @@ function normalizeModel(model: ArchitectureModel): ArchitectureModel {
       kind: "custom",
       role: "neutral",
     } as ArchitectureZone);
+  }
+
+  // 4b. Actors are placed in the top-level zone marked kind:"user". Models often
+  // label that zone "Devices" or "Channels" and give it some other kind, which used
+  // to strand every actor outside the landscape and leave the zone drawn but empty.
+  // Promote the most likely candidate instead: a top-level zone holding nothing.
+  if (fixedActors.length && !fixedZones.some((z) => !z.parentId && z.kind === "user")) {
+    const occupied = new Set(fixedComponents.map((c) => c.zoneId));
+    const hasChildZone = new Set(fixedZones.map((z) => z.parentId).filter(Boolean));
+    const empty = fixedZones.filter(
+      (z) => !z.parentId && !occupied.has(z.id) && !hasChildZone.has(z.id)
+    );
+    const looksUserFacing = /device|user|client|channel|front|consumer|endpoint/i;
+    const entry =
+      empty.find((z) => looksUserFacing.test(`${z.id} ${z.label}`)) ?? empty[0];
+    if (entry) entry.kind = "user";
+  }
+
+  // 4c. A zone with nothing in it is always a mistake — an empty labelled box that
+  // reads as a missing part of the architecture. Drop it, keeping any zone that is
+  // still earning its place as an ancestor or as the actors' home.
+  const userZoneId = fixedZones.find((z) => !z.parentId && z.kind === "user")?.id;
+  for (let pass = 0; pass < 4; pass++) {
+    const occupied = new Set(fixedComponents.map((c) => c.zoneId));
+    const parents = new Set(fixedZones.map((z) => z.parentId).filter(Boolean));
+    const dead = fixedZones.filter(
+      (z) =>
+        !occupied.has(z.id) &&
+        !parents.has(z.id) &&
+        !(z.id === userZoneId && fixedActors.length > 0)
+    );
+    if (!dead.length) break;
+    for (const z of dead) fixedZones.splice(fixedZones.indexOf(z), 1);
   }
 
   // 5. flows follow any renames and drop only if an endpoint truly does not exist
@@ -364,15 +403,22 @@ export function generateDrawioXml(
   // Connector labels and interface chips sit in the gap between columns, so the gap
   // has to be wide enough for the widest of them. Without this the layout is tight
   // and correct while the labels have nowhere to go.
-  const widestAnnotation = flows.reduce((max, f) => {
+  const annotationWidth = (f: (typeof flows)[number]) => {
     const label = Math.min((f.label ?? "").length, EDGE_LABEL_MAX) * 6;
     const chip = Math.min((f.protocol ?? "").length, CHIP_LABEL_MAX) * 8 + 16;
-    return Math.max(max, label, chip);
-  }, 0);
-  const columnGap = Math.min(
-    240,
-    Math.max(SPACE.xl + SPACE.md, Math.ceil((widestAnnotation + SPACE.md) / GRID) * GRID)
-  );
+    return Math.max(label, chip);
+  };
+  const flowById = new Map(flows.map((f) => [f.id, f]));
+  const gutterFor = (ids: string[]) => {
+    let widest = 0;
+    for (const id of ids) {
+      const f = flowById.get(id);
+      if (f) widest = Math.max(widest, annotationWidth(f));
+    }
+    return widest ? Math.min(240, Math.ceil((widest + SPACE.md) / GRID) * GRID) : 0;
+  };
+  // floor for gutters nothing is labelled across — still a routing channel
+  const columnGap = SPACE.xl + SPACE.md;
 
   const laid = layoutTree(tree, edges, {
     origin: { x: SPACE.lg, y: HEADER_H + SPACE.md },
@@ -380,6 +426,8 @@ export function generateDrawioXml(
     nodeGap: SPACE.lg, // 40 — routing channel between stacked cards
     header: SPACE.lg - GRID,
     pad: SPACE.md,
+    targetRatio: options.targetRatio,
+    gapFor: gutterFor,
   });
 
   const zoneBox = new Map<string, { x: number; y: number; w: number; h: number }>();

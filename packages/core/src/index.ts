@@ -13,6 +13,13 @@ export {
   SYSTEM_PROMPT,
   type VisionExtractorOptions,
 } from "./vision/extract.js";
+export {
+  PROVIDERS,
+  resolveProvider,
+  keyFromEnv,
+  type ProviderId,
+  type ProviderProfile,
+} from "./vision/providers.js";
 export { mockExtractFromImage } from "./vision/mock.js";
 export {
   retrieveReferences,

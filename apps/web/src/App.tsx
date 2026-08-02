@@ -1,152 +1,331 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { approveJob, getHealth, runDemo, runPipeline as runCapPipeline } from "./api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  approveJob,
+  getHealth,
+  runDemo,
+  runPipeline,
+  type Health,
+  type ProviderInfo,
+} from "./api";
+import { renderPreview } from "./preview";
 import type { ArchitectureModel, PipelineResult } from "./types";
 
-const DEMO_HINTS = [
-  {
-    label: "Agentic AI / Joule",
-    hints: "agentic joule custom agents",
-    desc: "Multi-agent on BTP",
-  },
-  {
-    label: "Clean-core extension",
-    hints: "clean core s4 extension",
-    desc: "Side-by-side CAP",
-  },
-  {
-    label: "Integration hub",
-    hints: "integration hybrid cpi",
-    desc: "Hybrid CPI landscape",
-  },
+const SCENARIOS = [
+  { label: "Agentic AI", hints: "agentic joule custom agents", note: "Orchestrated agents on a platform" },
+  { label: "Clean core", hints: "clean core s4 extension", note: "Side-by-side extension" },
+  { label: "Hybrid", hints: "integration hybrid cpi", note: "On-premise and partner reach" },
 ];
 
-const FLOW_PREVIEW = [
-  { label: "Vision extract", tag: "GPT Vision" },
-  { label: "Reference retrieve", tag: "Architecture Center" },
-  { label: "Gap analysis", tag: "Best practices" },
-  { label: "Human review", tag: "Architect HITL" },
-  { label: "Draw.io generate", tag: "Style Contract" },
-];
+const STEP_COPY: Record<string, string> = {
+  extract: "Reading the sketch",
+  retrieve: "Matching references",
+  gaps: "Checking for gaps",
+  refine: "Refining the model",
+  human_review: "Waiting for you",
+  generate: "Drawing the diagram",
+  validate: "Validating output",
+};
 
-function stepIcon(status: string): string {
-  if (status === "completed" || status === "skipped") return "✓";
-  if (status === "failed") return "!";
-  if (status === "running" || status === "waiting") return "…";
-  return "";
+/**
+ * Draw.io editor, embedded.
+ *
+ * Self-hosted by default (`docker compose up -d drawio`) so architecture diagrams stay
+ * on the network; point VITE_DRAWIO_URL at embed.diagrams.net to use the public one.
+ *
+ * The handshake is Draw.io's own JSON embed protocol: the editor announces `init`, we
+ * reply with `load`, and it reports every change back as `autosave` — so edits made
+ * here become the file you download. If no `init` arrives the service isn't running,
+ * and the caller falls back to the built-in preview.
+ */
+const DRAWIO_URL = import.meta.env.VITE_DRAWIO_URL ?? "http://localhost:8080";
+
+function DrawioEmbed({
+  xml,
+  onChange,
+  onUnavailable,
+}: {
+  xml: string;
+  onChange: (xml: string) => void;
+  onUnavailable: () => void;
+}) {
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [ready, setReady] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+
+  // the editor is loaded once, on init — later prop changes must not reload it and
+  // throw away the user's in-progress edits
+  const initial = useRef(xml);
+  const latest = useRef({ onChange, onUnavailable });
+  latest.current = { onChange, onUnavailable };
+
+  const origin = useMemo(() => {
+    try {
+      return new URL(DRAWIO_URL, window.location.href).origin;
+    } catch {
+      return "*";
+    }
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== origin || typeof e.data !== "string") return;
+      let msg: { event?: string; xml?: string };
+      try {
+        msg = JSON.parse(e.data) as { event?: string; xml?: string };
+      } catch {
+        return;
+      }
+      const post = (m: unknown) =>
+        frame.current?.contentWindow?.postMessage(JSON.stringify(m), origin);
+
+      if (msg.event === "init") {
+        setReady(true);
+        post({ action: "load", xml: initial.current, autosave: 1 });
+      } else if ((msg.event === "autosave" || msg.event === "save") && msg.xml) {
+        latest.current.onChange(msg.xml);
+        if (msg.event === "save") {
+          setSaved(new Date().toLocaleTimeString());
+          post({ action: "status", message: "Saved to the studio", modified: false });
+        }
+      }
+    };
+
+    window.addEventListener("message", onMessage);
+    // no handshake means nothing is serving the editor
+    const timer = setTimeout(() => {
+      if (!frame.current?.dataset.ready) latest.current.onUnavailable();
+    }, 8000);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      clearTimeout(timer);
+    };
+  }, [origin]);
+
+  const src = `${DRAWIO_URL}?embed=1&proto=json&spin=1&libraries=1&noExitBtn=1&saveAndExit=0&modified=unsavedChanges`;
+
+  return (
+    <div className="embed">
+      {!ready && (
+        <div className="embed-boot">
+          <span className="spinner" /> Starting the Draw.io editor…
+        </div>
+      )}
+      <iframe
+        ref={frame}
+        data-ready={ready ? "1" : undefined}
+        className="embed-frame"
+        title="Draw.io editor"
+        src={src}
+      />
+      {ready && (
+        <p className="embed-note">
+          Editing in Draw.io · changes flow back to Download{saved ? ` · saved ${saved}` : ""}
+        </p>
+      )}
+    </div>
+  );
 }
 
-function phaseClass(result: PipelineResult | null): {
-  input: string;
-  pipeline: string;
-  review: string;
-} {
-  if (!result) return { input: "active", pipeline: "", review: "" };
-  if (result.status === "awaiting_review")
-    return { input: "done", pipeline: "done", review: "wait" };
-  if (result.status === "completed")
-    return { input: "done", pipeline: "done", review: "done" };
-  if (result.status === "running" || result.status === "queued")
-    return { input: "done", pipeline: "active", review: "" };
-  if (result.status === "failed")
-    return { input: "done", pipeline: "active", review: "" };
-  return { input: "active", pipeline: "", review: "" };
+function statusTone(s: string) {
+  if (s === "completed" || s === "skipped") return "done";
+  if (s === "failed") return "failed";
+  if (s === "running") return "running";
+  if (s === "waiting") return "waiting";
+  return "idle";
+}
+
+/**
+ * Pan/zoom viewer for the generated diagram.
+ *
+ * A finished drawing is often 2000px+ wide, so scaling it to fit makes the labels
+ * unreadable. Wheel zooms toward the cursor, drag pans, and the browser's own
+ * fullscreen gives the drawing the whole screen without a lightbox to maintain.
+ */
+function DiagramViewer({ svg, shapes }: { svg: string; shapes: number }) {
+  const frame = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+  const [full, setFull] = useState(false);
+
+  const fit = useCallback(() => setView({ scale: 1, x: 0, y: 0 }), []);
+
+  const zoomBy = useCallback((factor: number, at?: { x: number; y: number }) => {
+    setView((v) => {
+      const scale = Math.min(6, Math.max(0.25, v.scale * factor));
+      if (!at) return { ...v, scale };
+      // keep the point under the cursor fixed while the scale changes
+      const k = scale / v.scale;
+      return { scale, x: at.x - (at.x - v.x) * k, y: at.y - (at.y - v.y) * k };
+    });
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => setFull(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  // a non-passive listener is the only way to stop the page scrolling as you zoom
+  useEffect(() => {
+    const el = frame.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12, { x: e.clientX - r.left, y: e.clientY - r.top });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [zoomBy]);
+
+  return (
+    <div className={`viewer ${full ? "full" : ""}`} ref={frame}>
+      <div
+        className="viewer-stage"
+        onPointerDown={(e) => {
+          drag.current = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y };
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (!d) return;
+          setView((v) => ({ ...v, x: d.ox + (e.clientX - d.x), y: d.oy + (e.clientY - d.y) }));
+        }}
+        onPointerUp={(e) => {
+          drag.current = null;
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onDoubleClick={fit}
+      >
+        <div
+          className="viewer-canvas"
+          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})` }}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
+
+      <div className="viewer-dock">
+        <span className="viewer-shapes">{shapes} shapes</span>
+        <span className="viewer-sep" />
+        <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out">
+          −
+        </button>
+        <button type="button" className="viewer-scale" onClick={fit} title="Reset">
+          {Math.round(view.scale * 100)}%
+        </button>
+        <button type="button" onClick={() => zoomBy(1.25)} aria-label="Zoom in">
+          +
+        </button>
+        <span className="viewer-sep" />
+        <button
+          type="button"
+          onClick={() => {
+            if (document.fullscreenElement) void document.exitFullscreen();
+            else void frame.current?.requestFullscreen?.();
+          }}
+        >
+          {full ? "Exit" : "Expand"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export default function App() {
+  const [health, setHealth] = useState<Health | null>(null);
+  const [provider, setProvider] = useState("mock");
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [hints, setHints] = useState("agentic joule custom agents");
+  const [hints, setHints] = useState(SCENARIOS[0].hints);
   const [dragOver, setDragOver] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState<null | "run" | "approve">(null);
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editJson, setEditJson] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
-  const [backend, setBackend] = useState<string>("CAP…");
+  const [tab, setTab] = useState<"diagram" | "edit" | "model" | "xml">("diagram");
+  const [editorDown, setEditorDown] = useState(false);
+  const [dark, setDark] = useState(() => localStorage.getItem("theme") !== "light");
+  const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     void getHealth().then((h) => {
-      if (h.ok) {
-        setBackend(
-          `SAP CAP · ${h.service ?? "ArchitectService"}${
-            h.vectorCount != null ? ` · ${h.vectorCount} refs` : ""
-          }`
-        );
-      } else {
-        setBackend("CAP offline — run npm run dev:cap");
-      }
+      setHealth(h);
+      if (h.provider) setProvider(h.provider);
     });
   }, []);
 
-  const onFile = useCallback(
-    (f: File | null) => {
-      setFile(f);
-      setResult(null);
-      setError(null);
-      setEditJson("");
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(f ? URL.createObjectURL(f) : null);
-    },
-    [previewUrl]
-  );
+  useEffect(() => {
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
 
+  // The pipeline is one request, so there is no honest per-step progress to show.
+  // A running clock at least tells you it is alive and how long it has taken.
+  useEffect(() => {
+    if (!busy) return;
+    setElapsed(0);
+    const t0 = Date.now();
+    const id = setInterval(() => setElapsed((Date.now() - t0) / 1000), 100);
+    return () => clearInterval(id);
+  }, [busy]);
+
+  const providers = health?.providers ?? [];
+  const active = providers.find((p) => p.id === provider);
   const model = result?.approved ?? result?.refined ?? result?.extracted;
   const awaiting = result?.status === "awaiting_review";
-  const canDownload = Boolean(result?.drawioXml && result.status === "completed");
-  const phases = phaseClass(result);
+  const finished = result?.status === "completed" && Boolean(result.drawioXml);
 
-  const downloadDrawio = () => {
-    if (!result?.drawioXml) return;
-    const blob = new Blob([result.drawioXml], { type: "application/xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(model?.title ?? "architecture").replace(/[^\w.-]+/g, "-")}.drawio`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const syncEditor = (data: PipelineResult) => {
-    const m = data.refined ?? data.extracted;
-    if (m) setEditJson(JSON.stringify(m, null, 2));
-  };
-
-  const runPipeline = async (mode: "upload" | "demo") => {
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setEditError(null);
+  const preview = useMemo(() => {
+    if (!result?.drawioXml) return null;
     try {
-      // CAP (CAPM) is the backend — /api/* is the CAP REST facade
-      const data =
-        mode === "demo"
-          ? await runDemo({
-              hints,
-              fileName: file?.name ?? "whiteboard-agentic.png",
-              autoApprove: false,
-            })
-          : await runCapPipeline({
-              hints,
-              file,
-              fileName: file?.name,
-              autoApprove: false,
-            });
+      return renderPreview(result.drawioXml);
+    } catch {
+      return null;
+    }
+  }, [result?.drawioXml]);
+
+  const onFile = useCallback((f: File | null) => {
+    setFile(f);
+    setResult(null);
+    setError(null);
+    setEditJson("");
+    setPreviewUrl((old) => {
+      if (old) URL.revokeObjectURL(old);
+      return f ? URL.createObjectURL(f) : null;
+    });
+  }, []);
+
+  // Edits made in the embedded editor replace the generated XML, so Download, Copy
+  // and the fast preview all reflect what the architect actually drew.
+  const onEditorChange = useCallback((drawioXml: string) => {
+    setResult((r) => (r ? { ...r, drawioXml } : r));
+  }, []);
+
+  async function start() {
+    setBusy("run");
+    setError(null);
+    setEditError(null);
+    setResult(null);
+    try {
+      const data = file
+        ? await runPipeline({ hints, file, provider })
+        : await runDemo({ hints, provider });
       setResult(data);
-      syncEditor(data);
-      if (data.status === "failed") {
-        setError(data.error ?? "Pipeline failed");
-      }
-      document.getElementById("workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const m = data.refined ?? data.extracted;
+      if (m) setEditJson(JSON.stringify(m, null, 2));
+      if (data.status === "failed") setError(data.error ?? "The pipeline did not finish");
+      setTab(data.drawioXml ? "diagram" : "model");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
-  };
+  }
 
-  const approve = async () => {
+  async function approve() {
     if (!result?.jobId) return;
-    setLoading(true);
+    setBusy("approve");
     setEditError(null);
     setError(null);
     try {
@@ -154,517 +333,391 @@ export default function App() {
       try {
         parsed = JSON.parse(editJson) as ArchitectureModel;
       } catch {
-        setEditError("Invalid JSON — fix the ArchitectureModel before approving.");
-        setLoading(false);
+        setEditError("That is not valid JSON — fix it before approving.");
         return;
       }
-
       const data = await approveJob(result.jobId, parsed);
       setResult(data);
-      if (data.status === "failed") setError(data.error ?? "Pipeline failed after approve");
+      if (data.status === "failed") setError(data.error ?? "Generation failed after approval");
+      else setTab("diagram");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
-  };
+  }
 
-  const steps = useMemo(() => result?.steps ?? [], [result]);
+  function download() {
+    if (!result?.drawioXml) return;
+    const blob = new Blob([result.drawioXml], { type: "application/xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(model?.title ?? "architecture").replace(/[^\w.-]+/g, "-").toLowerCase()}.drawio`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
-  const scrollToWorkspace = () => {
-    document.getElementById("workspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  const steps = result?.steps ?? [];
+  const doneCount = steps.filter((s) => s.status === "completed" || s.status === "skipped").length;
+  const progress = steps.length ? Math.round((doneCount / steps.length) * 100) : 0;
 
   return (
-    <div className="shell">
-      {/* Navigation */}
-      <nav className="nav">
-        <div className="nav-brand">
-          <div className="nav-mark">AB</div>
-          <div className="nav-titles">
-            <strong>SAP Architect Builder</strong>
-            <span>Whiteboard → Architecture Center diagrams</span>
-          </div>
+    <div className="app">
+      {/* ── Bar ─────────────────────────────────────────────────── */}
+      <header className="bar">
+        <div className="bar-brand">
+          <span className="mark" aria-hidden="true" />
+          <span className="mark-name">Architecture Studio</span>
         </div>
-        <div className="nav-links">
-          <button type="button" className="nav-link" onClick={scrollToWorkspace}>
-            Workspace
-          </button>
-          <a
-            className="nav-link"
-            href="https://architecture.learning.sap.com/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Architecture Center
-          </a>
+
+        <div className="bar-status">
+          {health && (
+            <span className={`live ${health.ok ? "" : "live-off"}`}>
+              <span className="live-dot" />
+              {health.ok ? `${health.vectorCount ?? 0} references` : "Backend offline"}
+            </span>
+          )}
+          {active && <span className="bar-model">{active.model}</span>}
+        </div>
+
+        <div className="bar-end">
           <button
             type="button"
-            className="nav-link nav-cta"
-            disabled={loading}
-            onClick={() => {
-              scrollToWorkspace();
-              void runPipeline("demo");
-            }}
+            className="icon-btn"
+            onClick={() => setDark((d) => !d)}
+            title={dark ? "Light" : "Dark"}
+            aria-label="Toggle theme"
           >
-            Try demo
+            {dark ? "☾" : "☀"}
           </button>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <header className="hero">
-        <div className="hero-inner">
-          <div>
-            <div className="hero-eyebrow">
-              <span className="dot-live" />
-              Backend: SAP CAP (CAPM) · LangGraph · XSUAA ready
-            </div>
-            <h1>
-              From whiteboard sketch to <em>editable SAP architecture</em>
-            </h1>
-            <p className="hero-lead">
-              Multi-agent AI extracts intent from photos and notes, grounds designs in SAP
-              Architecture Center references, and generates Draw.io XML you can open and edit —
-              not a static picture you redraw.
-            </p>
-            <div className="hero-actions">
-              <button
-                type="button"
-                className="btn btn-primary btn-lg"
-                disabled={loading}
-                onClick={() => {
-                  scrollToWorkspace();
-                  void runPipeline(file ? "upload" : "demo");
-                }}
-              >
-                {loading ? (
-                  <>
-                    <span className="spinner" /> Running pipeline…
-                  </>
-                ) : (
-                  <>Start with mock demo</>
-                )}
-              </button>
-              <button type="button" className="btn btn-secondary btn-lg" onClick={scrollToWorkspace}>
-                Upload a sketch
-              </button>
-            </div>
-            <div className="hero-stats">
-              <div className="stat">
-                <strong>7 agents</strong>
-                <span>Inspectable LangGraph steps</span>
-              </div>
-              <div className="stat">
-                <strong>Official icons</strong>
-                <span>SAP Horizon Style Contract</span>
-              </div>
-              <div className="stat">
-                <strong>HITL review</strong>
-                <span>Architect approval gate</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="hero-visual" aria-hidden="true">
-            <div className="hero-visual-top">
-              <span>Pipeline preview</span>
-              <span className="pill-status">Production path</span>
-            </div>
-            <div className="flow-preview">
-              {FLOW_PREVIEW.map((s, i) => (
-                <div key={s.label} className="flow-step">
-                  <span className="n">{i + 1}</span>
-                  <span className="label">{s.label}</span>
-                  <span className="tag">{s.tag}</span>
-                </div>
-              ))}
-            </div>
-            <div className="hero-visual-foot">
-              <span className="mini-badge">Draw.io XML</span>
-              <span className="mini-badge indigo">Vector RAG</span>
-              <span className="mini-badge teal">XSUAA ready</span>
-            </div>
-          </div>
+          <a className="icon-btn" href="https://app.diagrams.net" target="_blank" rel="noreferrer">
+            diagrams.net ↗
+          </a>
         </div>
       </header>
 
-      {/* Capabilities */}
-      <section className="section-band">
-        <div className="section-head">
-          <h2>Built for enterprise architecture work</h2>
-          <p>
-            Designed around how SAP architects actually deliver — grounded references, official
-            visual language, and governance-friendly review.
-          </p>
-        </div>
-        <div className="feature-grid">
-          <article className="feature-card">
-            <div className="feature-icon blue">◎</div>
-            <h3>Vision, not plain OCR</h3>
-            <p>
-              Infers components, zones, and flows from messy whiteboards — relationships, not only
-              text boxes.
-            </p>
-          </article>
-          <article className="feature-card">
-            <div className="feature-icon indigo">◈</div>
-            <h3>Architecture Center RAG</h3>
-            <p>
-              Retrieves real SAP reference architectures so the model does not invent plausible but
-              nonexistent patterns.
-            </p>
-          </article>
-          <article className="feature-card">
-            <div className="feature-icon teal">⬡</div>
-            <h3>Editable Draw.io output</h3>
-            <p>
-              Emits Style Contract XML with official SAP icons — open in diagrams.net and keep
-              editing.
-            </p>
-          </article>
-          <article className="feature-card">
-            <div className="feature-icon green">✓</div>
-            <h3>Human-in-the-loop</h3>
-            <p>
-              Architects approve or correct the structured model before generation — audit-friendly
-              checkpoints.
-            </p>
-          </article>
-        </div>
-      </section>
+      <div className="body">
+        {/* ── Rail ──────────────────────────────────────────────── */}
+        <aside className="rail">
+          <section className="block">
+            <h2 className="block-title">Source</h2>
 
-      {/* Workspace */}
-      <main className="workspace" id="workspace">
-        <div className="workspace-panel">
-          <div className="workspace-header">
-            <div>
-              <h2>Architecture studio</h2>
-              <p>
-                Powered by <strong>SAP CAP</strong> — upload a sketch or run a scenario, then
-                review and download.
-              </p>
+            <div
+              className={`drop ${dragOver ? "over" : ""} ${file ? "has" : ""}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => document.getElementById("file")?.click()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  document.getElementById("file")?.click();
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragOver(true);
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                const f = e.dataTransfer.files?.[0];
+                if (f) onFile(f);
+              }}
+            >
+              {previewUrl ? (
+                <img className="thumb" src={previewUrl} alt="Your upload" />
+              ) : (
+                <>
+                  <span className="drop-plus" aria-hidden="true">
+                    +
+                  </span>
+                  <span className="drop-copy">
+                    <strong>Drop a sketch</strong>
+                    <em>PNG, JPG, WebP · optional</em>
+                  </span>
+                </>
+              )}
+              {file && <span className="drop-name">{file.name}</span>}
+              <input
+                id="file"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                hidden
+                onChange={(e) => onFile(e.target.files?.[0] ?? null)}
+              />
             </div>
-            <div className="phase-pills">
-              <span className={`phase-pill ${phases.input}`}>1 · Input</span>
-              <span className={`phase-pill ${phases.pipeline}`}>2 · Pipeline</span>
-              <span className={`phase-pill ${phases.review}`}>3 · Review</span>
+            {active?.vision === false && file && (
+              <p className="note-inline">{active.label} can't read images — your notes are used instead.</p>
+            )}
+
+            <textarea
+              className="prompt"
+              rows={7}
+              value={hints}
+              onChange={(e) => setHints(e.target.value)}
+              placeholder="Describe the solution — actors, zones, products, and how they connect."
+            />
+
+            <div className="presets">
+              {SCENARIOS.map((s) => (
+                <button
+                  key={s.label}
+                  type="button"
+                  title={s.note}
+                  className={`preset ${hints === s.hints ? "on" : ""}`}
+                  onClick={() => setHints(s.hints)}
+                >
+                  {s.label}
+                </button>
+              ))}
             </div>
+          </section>
+
+          <section className="block">
+            <h2 className="block-title">Model provider</h2>
+            <div className="providers">
+              {providers.map((p: ProviderInfo) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`prov ${provider === p.id ? "on" : ""}`}
+                  onClick={() => setProvider(p.id)}
+                  aria-pressed={provider === p.id}
+                >
+                  <span className="prov-dot" aria-hidden="true" />
+                  <span className="prov-text">
+                    <strong>{p.label}</strong>
+                    <em>{p.model}</em>
+                  </span>
+                  {!p.ready && <span className="prov-tag">no key</span>}
+                  {p.ready && p.vision && <span className="prov-tag soft">vision</span>}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <div className="rail-run">
+            <button className="btn btn-go" onClick={start} disabled={busy !== null}>
+              {busy === "run" ? (
+                <>
+                  <span className="spinner" /> Working · {elapsed.toFixed(1)}s
+                </>
+              ) : (
+                <>{file ? "Analyse sketch" : "Generate diagram"}</>
+              )}
+            </button>
           </div>
 
-          <div className="workspace-body">
-            <div className="grid">
-              {/* Input */}
-              <section className="card">
-                <div className="card-head">
-                  <span className="step-badge">1</span>
-                  <div>
-                    <h2>Input</h2>
-                    <p className="subtitle">
-                      Whiteboard photo, architecture sketch, or handwritten notes.
-                    </p>
-                  </div>
-                </div>
-
-                <div
-                  className={`dropzone ${dragOver ? "dragover" : ""}`}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOver(true);
-                  }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    setDragOver(false);
-                    const f = e.dataTransfer.files?.[0];
-                    if (f) onFile(f);
-                  }}
-                  onClick={() => document.getElementById("file-input")?.click()}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      document.getElementById("file-input")?.click();
-                    }
-                  }}
-                >
-                  <div className="dropzone-icon">↑</div>
-                  <strong>
-                    {file ? file.name : "Drop an image here or click to browse"}
-                  </strong>
-                  <span>PNG, JPG, WebP · max 15 MB · mock mode works without a key</span>
-                  <input
-                    id="file-input"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    hidden
-                    onChange={(e) => onFile(e.target.files?.[0] ?? null)}
-                  />
-                </div>
-
-                {previewUrl && (
-                  <div className="preview">
-                    <img src={previewUrl} alt="Upload preview" />
-                  </div>
+          {(steps.length > 0 || busy === "run") && (
+            <section className="block">
+              <h2 className="block-title">
+                Pipeline
+                {steps.length > 0 && <span className="block-meta">{progress}%</span>}
+              </h2>
+              <div className="track">
+                <div className="track-fill" style={{ width: `${busy === "run" ? 100 : progress}%` }} />
+              </div>
+              <ol className="steps">
+                {(busy === "run" ? Object.entries(STEP_COPY).map(([id, name]) => ({ id, name, status: "pending" })) : steps).map(
+                  (s) => (
+                    <li key={s.id} className={`step ${busy === "run" ? "pending" : statusTone(s.status)}`}>
+                      <span className="step-dot" aria-hidden="true" />
+                      <span className="step-name">{STEP_COPY[s.id] ?? s.name}</span>
+                    </li>
+                  )
                 )}
+              </ol>
+            </section>
+          )}
+        </aside>
 
-                <div className="field">
-                  <label htmlFor="hints">Architect hints (optional)</label>
-                  <textarea
-                    id="hints"
-                    rows={3}
-                    value={hints}
-                    onChange={(e) => setHints(e.target.value)}
-                    placeholder="e.g. clean-core extension to S/4 with Integration Suite"
-                  />
+        {/* ── Stage ─────────────────────────────────────────────── */}
+        <main className="stage">
+          {error && (
+            <div className="alert" role="alert">
+              {error}
+            </div>
+          )}
+
+          {!model && !busy && (
+            <div className="void">
+              <div className="void-art" aria-hidden="true">
+                <svg viewBox="0 0 240 140">
+                  <rect className="v1" x="10" y="46" width="58" height="30" rx="6" />
+                  <rect className="v2" x="91" y="46" width="58" height="30" rx="6" />
+                  <rect className="v3" x="172" y="46" width="58" height="30" rx="6" />
+                  <rect className="v4" x="91" y="100" width="58" height="30" rx="6" />
+                  <path className="vl" d="M68 61 H88" />
+                  <path className="vl" d="M149 61 H169" />
+                  <path className="vl" d="M120 100 V79" />
+                </svg>
+              </div>
+              <h1>Describe it. Get an editable drawing.</h1>
+              <p>
+                Your description becomes a structured model, grounded against reference
+                architectures and paused for review — then plotted as a real Draw.io file.
+              </p>
+              <button className="btn btn-go" onClick={start} disabled={busy !== null}>
+                Generate diagram
+              </button>
+            </div>
+          )}
+
+          {busy === "run" && !model && (
+            <div className="void">
+              <div className="pulse" aria-hidden="true" />
+              <h1>Reading your architecture</h1>
+              <p>{active?.label ?? "The model"} is extracting components and flows · {elapsed.toFixed(1)}s</p>
+            </div>
+          )}
+
+          {model && (
+            <>
+              <div className="stage-head">
+                <div className="stage-title">
+                  <h1>{model.title}</h1>
+                  <div className="chips">
+                    <span className="chip">{model.level}</span>
+                    <span className="chip">{model.components.length} components</span>
+                    <span className="chip">{model.flows.length} flows</span>
+                    {awaiting ? (
+                      <span className="chip chip-wait">Awaiting your review</span>
+                    ) : finished ? (
+                      <span className="chip chip-ok">Generated</span>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="field">
-                  <label>Quick scenarios</label>
-                  <div className="chips">
-                    {DEMO_HINTS.map((d) => (
+                <div className="stage-tools">
+                  <div className="segmented" role="tablist">
+                    {(["diagram", "edit", "model", "xml"] as const).map((t) => (
                       <button
-                        key={d.label}
-                        type="button"
-                        className={`chip ${hints === d.hints ? "active" : ""}`}
-                        onClick={() => setHints(d.hints)}
-                        title={d.desc}
+                        key={t}
+                        role="tab"
+                        aria-selected={tab === t}
+                        className={tab === t ? "on" : ""}
+                        onClick={() => setTab(t)}
+                        disabled={t !== "model" && !result?.drawioXml}
                       >
-                        {d.label}
+                        {t === "diagram"
+                          ? "Diagram"
+                          : t === "edit"
+                            ? "Edit"
+                            : t === "model"
+                              ? "Model"
+                              : "XML"}
                       </button>
                     ))}
                   </div>
+                  {awaiting && (
+                    <button className="btn btn-go sm" onClick={approve} disabled={busy !== null}>
+                      {busy === "approve" ? (
+                        <>
+                          <span className="spinner" /> Drawing…
+                        </>
+                      ) : (
+                        "Approve & draw"
+                      )}
+                    </button>
+                  )}
+                  {finished && (
+                    <>
+                      <button className="btn sm" onClick={download}>
+                        Download
+                      </button>
+                      <button
+                        className="btn sm"
+                        onClick={() => navigator.clipboard?.writeText(result!.drawioXml!)}
+                      >
+                        Copy XML
+                      </button>
+                    </>
+                  )}
                 </div>
+              </div>
 
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={loading}
-                    onClick={() => runPipeline(file ? "upload" : "demo")}
-                  >
-                    {loading ? (
-                      <>
-                        <span className="spinner" /> Running…
-                      </>
-                    ) : file ? (
-                      "Analyze upload"
-                    ) : (
-                      "Run mock demo"
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    disabled={!canDownload}
-                    onClick={downloadDrawio}
-                  >
-                    Download .drawio
-                  </button>
-                </div>
-
-                {error && (
-                  <div className="banner error-banner">
-                    <span className="banner-icon">!</span>
-                    <span>{error}</span>
-                  </div>
-                )}
-                {result?.status === "awaiting_review" && (
-                  <div className="banner info-banner">
-                    <span className="banner-icon">…</span>
-                    <span>
-                      Pipeline paused for <strong>human review</strong>. Edit the model below, then
-                      approve to generate Draw.io XML.
-                    </span>
-                  </div>
-                )}
-                {result?.status === "completed" && (
-                  <div className="banner success-banner">
-                    <span className="banner-icon">✓</span>
-                    <span>
-                      Pipeline completed ({result.engine ?? "langgraph"}). Open the file in{" "}
-                      <a href="https://app.diagrams.net" target="_blank" rel="noreferrer">
-                        diagrams.net
-                      </a>
-                      .
-                    </span>
-                  </div>
-                )}
-              </section>
-
-              {/* Pipeline */}
-              <section className="card">
-                <div className="card-head">
-                  <span className="step-badge two">2</span>
-                  <div>
-                    <h2>Pipeline</h2>
-                    <p className="subtitle">
-                      LangGraph: extract → retrieve → gaps → refine → review → generate → validate
-                    </p>
-                  </div>
-                </div>
-
-                {steps.length === 0 ? (
-                  <div className="empty-pipeline">
-                    <p>
-                      Run a demo or upload a sketch to watch each agent complete.
-                      <br />
-                      Steps stay inspectable for debugging and governance.
-                    </p>
-                  </div>
-                ) : (
-                  <ul className="steps">
-                    {steps.map((s) => (
-                      <li key={s.id} className={`step ${s.status}`}>
-                        <span className="dot">{stepIcon(s.status)}</span>
-                        <span className="step-name">{s.name}</span>
-                        <span className="step-status">{s.status}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {result?.references && result.references.length > 0 && (
-                  <div className="section">
-                    <h3>Matched references</h3>
-                    {result.references.map((r) => (
-                      <div key={r.ref.id} className="ref-card">
-                        <span className="score">{(r.score * 100).toFixed(0)}%</span>
-                        <h4>{r.ref.title}</h4>
-                        <p>{r.ref.summary}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              {/* Review */}
-              {(model || awaiting) && (
-                <section className="card full-width">
-                  <div className="card-head">
-                    <span className="step-badge three">3</span>
-                    <div>
-                      <h2>Human review</h2>
-                      <p className="subtitle">
-                        Edit the ArchitectureModel, then approve to resume generation.
-                      </p>
+              <div className="stage-body">
+                {tab === "diagram" &&
+                  (preview ? (
+                    <DiagramViewer svg={preview.svg} shapes={preview.shapes} />
+                  ) : (
+                    <div className="hollow">
+                      <p>Approve the model and the drawing appears here.</p>
                     </div>
-                  </div>
+                  ))}
 
-                  {model && (
-                    <div className="model-meta">
-                      <span className="tag">{model.title}</span>
-                      <span className="tag">{model.level}</span>
-                      <span className="tag">{model.components.length} components</span>
-                      {result?.engine && <span className="tag">{result.engine}</span>}
+                {tab === "edit" &&
+                  (result?.drawioXml && !editorDown ? (
+                    <DrawioEmbed
+                      xml={result.drawioXml}
+                      onChange={onEditorChange}
+                      onUnavailable={() => setEditorDown(true)}
+                    />
+                  ) : (
+                    <div className="hollow hollow-copy">
+                      <h3>The Draw.io editor isn't running</h3>
+                      <p>
+                        Start it and reopen this tab — the diagram loads with its SAP icons,
+                        and your edits flow back into Download.
+                      </p>
+                      <code>docker compose up -d drawio</code>
+                      <button className="btn sm" onClick={() => setEditorDown(false)}>
+                        Try again
+                      </button>
+                    </div>
+                  ))}
+
+                {tab === "model" && (
+                  <div className="editor">
+                    <textarea
+                      className="code-edit"
+                      spellCheck={false}
+                      value={editJson}
+                      onChange={(e) => setEditJson(e.target.value)}
+                      disabled={!awaiting}
+                    />
+                    {editError && <div className="alert">{editError}</div>}
+                  </div>
+                )}
+
+                {tab === "xml" && <pre className="code">{result?.drawioXml?.slice(0, 6000)}</pre>}
+              </div>
+
+              {((result?.references?.length ?? 0) > 0 || (result?.gaps?.length ?? 0) > 0) && (
+                <div className="insights">
+                  {result?.references && result.references.length > 0 && (
+                    <div className="insight">
+                      <h3>Closest references</h3>
+                      {result.references.slice(0, 3).map((r) => (
+                        <div key={r.ref.id} className="ref">
+                          <span className="score">{Math.round(r.score * 100)}</span>
+                          <div>
+                            <strong>{r.ref.title}</strong>
+                            <p>{r.ref.summary}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
-
                   {result?.gaps && result.gaps.length > 0 && (
-                    <div className="section">
-                      <h3>Gap analysis</h3>
+                    <div className="insight">
+                      <h3>Gaps found</h3>
                       {result.gaps.map((g) => (
                         <div key={g.id} className={`gap ${g.severity}`}>
-                          <strong>
-                            [{g.severity}] {g.message}
-                          </strong>
+                          <strong>{g.message}</strong>
                           {g.suggestion && <p>{g.suggestion}</p>}
                         </div>
                       ))}
                     </div>
                   )}
-
-                  <div className="field">
-                    <label htmlFor="model-json">ArchitectureModel (JSON)</label>
-                    <textarea
-                      id="model-json"
-                      className="mono"
-                      rows={16}
-                      value={editJson}
-                      onChange={(e) => setEditJson(e.target.value)}
-                      spellCheck={false}
-                      disabled={!awaiting && result?.status === "completed"}
-                    />
-                  </div>
-                  {editError && (
-                    <div className="banner error-banner">
-                      <span className="banner-icon">!</span>
-                      <span>{editError}</span>
-                    </div>
-                  )}
-
-                  <div className="actions">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={!awaiting || loading}
-                      onClick={approve}
-                    >
-                      {loading ? (
-                        <>
-                          <span className="spinner" /> Generating…
-                        </>
-                      ) : (
-                        "Approve & generate Draw.io"
-                      )}
-                    </button>
-                    {canDownload && (
-                      <button type="button" className="btn btn-secondary" onClick={downloadDrawio}>
-                        Download .drawio
-                      </button>
-                    )}
-                  </div>
-
-                  {model && (
-                    <div className="section">
-                      <h3>Components</h3>
-                      <div className="chips">
-                        {(result?.approved ?? result?.refined ?? model).components.map((c) => (
-                          <div key={c.id} className="chip static">
-                            <strong>{c.officialName ?? c.label}</strong>
-                            {c.subtitle && <span className="meta">{c.subtitle}</span>}
-                            <span className="meta">
-                              {c.kind}
-                              {typeof c.confidence === "number"
-                                ? ` · ${(c.confidence * 100).toFixed(0)}% conf`
-                                : ""}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {result?.drawioXml && (
-                    <div className="section">
-                      <h3>Draw.io XML preview</h3>
-                      <pre className="xml-preview">{result.drawioXml.slice(0, 2500)}…</pre>
-                    </div>
-                  )}
-                </section>
+                </div>
               )}
-            </div>
-          </div>
-        </div>
-      </main>
-
-      <footer className="footer">
-        <div className="footer-inner">
-          <div className="footer-brand">
-            <strong>SAP Architect Builder</strong>
-            <span>
-              Prototype for whiteboard-to-architecture automation. Align product names and icons
-              with SAP Architecture Center and BTP Solution Diagram guidelines.
-            </span>
-          </div>
-          <div className="footer-meta">
-            <span>{backend}</span>
-            <span>LangGraph</span>
-            <span>Draw.io XML</span>
-            <span>XSUAA</span>
-          </div>
-        </div>
-      </footer>
+            </>
+          )}
+        </main>
+      </div>
     </div>
   );
 }

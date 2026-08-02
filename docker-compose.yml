@@ -16,5 +16,20 @@ services:
       timeout: 5s
       retries: 10
 
+  # Draw.io editor embedded in the studio. Self-hosted so architecture diagrams
+  # never leave the network — the public embed.diagrams.net would work identically.
+  drawio:
+    image: jgraph/drawio:latest
+    container_name: sap-architect-drawio
+    environment:
+      DRAWIO_SELF_CONTAINED: "1"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
 volumes:
   pgvector_data:

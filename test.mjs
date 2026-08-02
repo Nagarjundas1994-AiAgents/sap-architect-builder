@@ -344,3 +344,41 @@ test("approve still generates when the graph checkpoint is gone (restart / other
   assert.ok(r.drawioXml?.includes("<mxfile"));
   assert.equal(r.approved.id, MODEL.id);
 });
+
+test("a long flow chain wraps instead of drawing an unreadable ribbon", () => {
+  // Longest-path layering puts one column per hop, so a sequential architecture
+  // used to come out as a band several thousand px wide and one card tall.
+  const chain = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"];
+  const model = {
+    ...MODEL,
+    title: "Long chain",
+    actors: [],
+    zones: [{ id: "z1", label: "Platform", kind: "sap-btp" }],
+    components: chain.map((id) => ({
+      id,
+      label: `Service ${id.toUpperCase()}`,
+      kind: "sap-service",
+      zoneId: "z1",
+    })),
+    flows: chain.slice(0, -1).map((s, i) => ({ id: `f${i}`, sourceId: s, targetId: chain[i + 1] })),
+  };
+
+  const extent = (xml) => {
+    // top-level cells are page-absolute; children are relative to their parent
+    const boxes = [...xml.matchAll(/<mxGeometry x="(-?[\d.]+)" y="(-?[\d.]+)" width="([\d.]+)" height="([\d.]+)"/g)];
+    let w = 0;
+    let h = 0;
+    for (const b of boxes) {
+      w = Math.max(w, +b[1] + +b[3]);
+      h = Math.max(h, +b[2] + +b[4]);
+    }
+    return w / h;
+  };
+
+  const wide = extent(generateDrawioXml(model, { targetRatio: 0 }));
+  const wrapped = extent(generateDrawioXml(model, {}));
+
+  assert.ok(wide > 5, `unwrapped chain should be a ribbon, got ${wide.toFixed(2)}`);
+  assert.ok(wrapped < wide / 2, `wrapping should roughly halve the ratio: ${wrapped.toFixed(2)} vs ${wide.toFixed(2)}`);
+  assert.deepEqual(validateDrawioXml(generateDrawioXml(model, {})).issues, [], "wrapped output must still validate");
+});

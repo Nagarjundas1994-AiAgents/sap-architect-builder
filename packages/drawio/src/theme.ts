@@ -1,16 +1,18 @@
 /**
  * Design system for generated architecture diagrams.
  *
- * This is an original visual language, not a reproduction of any vendor's diagram
- * style. Published reference architectures (SAP Architecture Center and others) are
- * used only as a quality bar — the tokens below are ours, and every emitted style
- * string is derived from them rather than copied from a source document.
+ * Colours follow the SAP Horizon palette so output sits alongside SAP Architecture
+ * Center diagrams without looking foreign — that is the house style for the drawings
+ * this tool produces, and SAP ships the matching Draw.io shape library for exactly
+ * this purpose. The structure below is ours; only the hues are aligned.
  *
  * Design intent
  * - One hue per semantic role, so colour always means something.
  * - Areas read as calm containers: 6–10% tint, restrained stroke, generous radius.
  * - Foreground objects are white cards carrying their owner's hue, so the eye
  *   follows structure first and detail second.
+ * - A connector and its label chip share one colour, so a flow's meaning is
+ *   readable without consulting the legend.
  * - Everything sits on an 8px grid at a 1.25 modular type scale.
  */
 
@@ -68,38 +70,38 @@ export interface RoleColor {
 }
 
 /**
- * Hues chosen for separation on both light backgrounds and greyscale print:
- * azure, violet, teal, cyan-slate, green, amber, magenta, slate.
+ * SAP Horizon hues, one per role, each with a very light wash for areas. Chosen so
+ * the eight stay separable on screen and in greyscale print.
  */
 export const PALETTE: Record<Role, RoleColor> = {
-  platform: { line: "#2F5EA8", wash: "#EEF3FB", tint: "#DCE6F6" },
-  application: { line: "#6A4BB8", wash: "#F2EFFA", tint: "#E4DEF5" },
-  data: { line: "#0E7C6B", wash: "#E9F6F3", tint: "#D2EDE7" },
-  integration: { line: "#1F6F8B", wash: "#EAF4F7", tint: "#D3E8EF" },
-  security: { line: "#1E7A4C", wash: "#EAF5EF", tint: "#D3EADF" },
-  external: { line: "#5C6B7A", wash: "#F2F4F6", tint: "#E3E7EB" },
-  edge: { line: "#A55A1B", wash: "#FBF2E9", tint: "#F4E2CD" },
-  neutral: { line: "#5C6B7A", wash: "#F7F8FA", tint: "#E9ECEF" },
+  platform: { line: "#0070F2", wash: "#EAF4FD", tint: "#D1E7FB" },
+  application: { line: "#7858FF", wash: "#F3F0FE", tint: "#E2DBFD" },
+  data: { line: "#049F9A", wash: "#E6F6F5", tint: "#C9EBE9" },
+  integration: { line: "#E76500", wash: "#FDF1E6", tint: "#FADEC5" },
+  security: { line: "#256F3A", wash: "#EAF4ED", tint: "#CFE6D7" },
+  external: { line: "#8396A8", wash: "#F4F5F7", tint: "#E3E7EB" },
+  edge: { line: "#8B5E3C", wash: "#F8F2ED", tint: "#EBDCCE" },
+  neutral: { line: "#5B738B", wash: "#F5F6F7", tint: "#E5E9ED" },
 };
 
 export const INK = {
-  strong: "#16202B",
-  muted: "#5A6B7C",
-  faint: "#8A98A6",
+  strong: "#1D2D3E",
+  muted: "#556B82",
+  faint: "#8396A8",
   surface: "#FFFFFF",
-  hairline: "#D8DEE4",
+  hairline: "#D9DEE3",
 } as const;
 
 /** Connector semantics. One meaning per colour, declared in the legend. */
 export type FlowSemantic = "data" | "control" | "event" | "trust" | "async" | "batch";
 
 export const FLOW_COLOR: Record<FlowSemantic, string> = {
-  data: "#5C6B7A",
-  control: "#2F5EA8",
-  event: "#A55A1B",
-  trust: "#1E7A4C",
-  async: "#1F6F8B",
-  batch: "#6A4BB8",
+  data: "#5B738B",
+  control: "#0070F2",
+  event: "#E76500",
+  trust: "#256F3A",
+  async: "#049F9A",
+  batch: "#7858FF",
 };
 
 export const FLOW_LABEL: Record<FlowSemantic, string> = {
@@ -125,7 +127,8 @@ export function areaStyle(role: Role, depth = 0): string {
     `strokeColor=${c.line};fillColor=${fill};strokeWidth=${STROKE.regular};`,
     "align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;",
     `fontFamily=${FONT};fontSize=${depth === 0 ? TYPE.areaTitle : TYPE.subAreaTitle};`,
-    `fontStyle=1;fontColor=${INK.muted};`,
+    // zone titles read as headings, not captions — bold and dark like the reference set
+    `fontStyle=1;fontColor=${depth === 0 ? INK.strong : INK.muted};`,
     "container=0;recursiveResize=0;collapsible=0;",
   ]);
 }
@@ -153,7 +156,7 @@ export function boundaryStyle(role: Role = "security"): string {
 export type Emphasis = "focus" | "normal" | "muted";
 
 /** Accent reserved for the subject of the diagram. Used sparingly, by definition. */
-export const FOCUS = { line: "#B0208C", wash: "#FDEFF8" } as const;
+export const FOCUS = { line: "#C0399F", wash: "#FCEFF7" } as const;
 
 /** Foreground object: white card carrying its owner's hue. */
 export function cardStyle(role: Role, emphasis: Emphasis = "normal"): string {
@@ -238,7 +241,8 @@ export function chipStyle(semantic: FlowSemantic): string {
     `arcSize=${RADIUS.chip};`,
     `strokeColor=${color};fillColor=${INK.surface};strokeWidth=${STROKE.regular};`,
     "align=center;verticalAlign=middle;resizable=0;points=[];",
-    `fontFamily=${FONT};fontSize=${TYPE.chip};fontColor=${INK.strong};`,
+    // chip text carries the connector's colour, so meaning survives without the legend
+    `fontFamily=${FONT};fontSize=${TYPE.chip};fontColor=${color};fontStyle=1;`,
   ]);
 }
 

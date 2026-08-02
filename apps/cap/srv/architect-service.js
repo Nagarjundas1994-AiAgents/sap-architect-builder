@@ -49,7 +49,11 @@ module.exports = class ArchitectService extends cds.ApplicationService {
           fileName: fileName || "upload.png",
           hints: hints || undefined,
         },
-        { autoApprove: Boolean(autoApprove), meta: { hints, fileName } }
+        {
+          autoApprove: Boolean(autoApprove),
+          provider: req.data?.provider,
+          meta: { hints, fileName },
+        }
       );
     });
 
@@ -69,7 +73,7 @@ module.exports = class ArchitectService extends cds.ApplicationService {
         },
         {
           autoApprove: Boolean(autoApprove),
-          provider: "mock",
+          provider: req.data?.provider || "mock",
           meta: { hints, fileName },
         }
       );
@@ -93,11 +97,12 @@ module.exports = class ArchitectService extends cds.ApplicationService {
         return req.error(400, `Invalid model: ${check.issues.join("; ")}`);
       }
 
+      const cfg = this._providerConfig();
       const result = await this.core.resumeArchitecturePipeline(jobId, model, {
-        provider: process.env.LLM_PROVIDER || "mock",
-        apiKey: process.env.OPENAI_API_KEY,
-        baseUrl: process.env.OPENAI_BASE_URL,
-        model: process.env.OPENAI_MODEL,
+        provider: cfg.provider,
+        apiKey: cfg.apiKey,
+        baseUrl: cfg.baseUrl,
+        model: cfg.model,
       });
 
       await this._persistJob(result, {});
@@ -132,12 +137,46 @@ module.exports = class ArchitectService extends cds.ApplicationService {
     return cds.db || cds.connect.to("db");
   }
 
+  /** Credentials for whichever provider the caller asked for. */
+  _providerConfig(requested) {
+    const id = (requested || process.env.LLM_PROVIDER || "mock").toLowerCase();
+    const byId = {
+      openai: {
+        apiKey: process.env.OPENAI_API_KEY,
+        baseUrl: process.env.OPENAI_BASE_URL,
+      },
+      deepseek: {
+        apiKey: process.env.DEEPSEEK_API_KEY,
+        baseUrl: process.env.DEEPSEEK_BASE_URL,
+      },
+      google: {
+        apiKey: process.env.GOOGLE_API_KEY,
+        baseUrl: process.env.GOOGLE_BASE_URL,
+      },
+    };
+    const cfg = byId[id] || {};
+    // a provider without a key silently falls back to the sample extractor, so say so
+    const usable = id === "mock" || Boolean(cfg.apiKey);
+    return {
+      provider: usable ? id : "mock",
+      requested: id,
+      apiKey: cfg.apiKey,
+      baseUrl: cfg.baseUrl,
+      // LLM_MODEL names a model for LLM_PROVIDER only — sending it to a provider
+      // the caller picked in the studio would ask Gemini for a GPT model
+      model:
+        (id === (process.env.LLM_PROVIDER || "mock").toLowerCase() && process.env.LLM_MODEL) ||
+        undefined,
+    };
+  }
+
   async _runPipeline(extractReq, { autoApprove = false, provider, meta = {} } = {}) {
+    const cfg = this._providerConfig(provider);
     const result = await this.core.runArchitecturePipeline(extractReq, {
-      provider: provider || process.env.LLM_PROVIDER || "mock",
-      apiKey: process.env.OPENAI_API_KEY,
-      baseUrl: process.env.OPENAI_BASE_URL,
-      model: process.env.OPENAI_MODEL,
+      provider: cfg.provider,
+      apiKey: cfg.apiKey,
+      baseUrl: cfg.baseUrl,
+      model: cfg.model,
       engine: process.env.PIPELINE_ENGINE || "langgraph",
       requireHumanReview: !autoApprove && process.env.REQUIRE_HUMAN_REVIEW !== "false",
     });
@@ -156,11 +195,21 @@ module.exports = class ArchitectService extends cds.ApplicationService {
     } catch {
       /* ignore */
     }
+    const catalog = Object.values(this.core.PROVIDERS).map((p) => ({
+      id: p.id,
+      label: p.label,
+      description: p.description,
+      model: (p.id === (process.env.LLM_PROVIDER || "mock") && process.env.LLM_MODEL) || p.defaultModel,
+      vision: p.vision,
+      ready: p.id === "mock" || Boolean(process.env[p.envKey]),
+    }));
+
     return {
       ok: true,
       backend: "cap",
       service: "ArchitectService",
-      provider: process.env.LLM_PROVIDER || "mock",
+      provider: this._providerConfig().provider,
+      providersJson: JSON.stringify(catalog),
       engine: process.env.PIPELINE_ENGINE || "langgraph",
       requireHumanReview: process.env.REQUIRE_HUMAN_REVIEW !== "false",
       hasApiKey: Boolean(process.env.OPENAI_API_KEY),

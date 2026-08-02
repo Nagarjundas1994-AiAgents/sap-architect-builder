@@ -24,7 +24,8 @@ service ArchitectService {
     fileName    : String,
     imageBase64 : LargeString,
     mimeType    : String,
-    autoApprove : Boolean
+    autoApprove : Boolean,
+    provider    : String
   ) returns JobResult;
 
   /**
@@ -39,7 +40,8 @@ service ArchitectService {
   action runDemo(
     hints       : String,
     fileName    : String,
-    autoApprove : Boolean
+    autoApprove : Boolean,
+    provider    : String
   ) returns JobResult;
 
   function getJob(jobId : String) returns JobResult;
@@ -83,6 +85,7 @@ service ArchitectService {
     hasApiKey           : Boolean;
     vectorKind          : String;
     vectorCount         : Integer;
+    providersJson       : LargeString;
   }
 }
 

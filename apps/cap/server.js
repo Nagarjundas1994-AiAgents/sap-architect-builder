@@ -3,9 +3,18 @@
  * - OData V4 ArchitectService at /odata/v4/architect
  * - REST facade at /api/* for the React studio (same CAP service + auth context)
  */
+const path = require("node:path");
 const cds = require("@sap/cds");
 const cors = require("cors");
 const express = require("express");
+
+// cds runs with cwd apps/cap, so the repo-root .env holding the provider keys
+// is out of reach unless we load it ourselves. Real environment wins.
+try {
+  process.loadEnvFile(path.join(__dirname, "..", "..", ".env"));
+} catch {
+  /* no .env — mock provider, which is the documented default */
+}
 
 const CORS_ORIGIN = process.env.CORS_ORIGIN || "http://localhost:5173";
 
@@ -92,6 +101,7 @@ cds.on("served", () => {
           hints: req.body?.hints || "agentic joule custom agents",
           fileName: req.body?.fileName || "whiteboard-agentic.png",
           autoApprove: Boolean(req.body?.autoApprove),
+          provider: req.body?.provider,
         })
       );
       sendUi(res, jobResult);
@@ -111,6 +121,7 @@ cds.on("served", () => {
           imageBase64: body.imageBase64 || "",
           mimeType: body.mimeType || "image/png",
           autoApprove: body.autoApprove === true || body.autoApprove === "true",
+          provider: body.provider,
         })
       );
       sendUi(res, jobResult);
