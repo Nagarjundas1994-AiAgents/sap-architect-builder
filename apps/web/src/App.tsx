@@ -126,6 +126,67 @@ function DrawioEmbed({
   );
 }
 
+const ARTIFACTS = [
+  { key: "contextC4", label: "C4 context", lang: "mermaid", note: "Paste into a Markdown file or Confluence" },
+  { key: "containerC4", label: "C4 container", lang: "mermaid", note: "Keeps composition and nesting" },
+  { key: "sequence", label: "Sequence", lang: "mermaid", note: "Runtime call order; dashed arrows are async" },
+  { key: "identityFlow", label: "Identity & trust", lang: "mermaid", note: "Trust relationships only" },
+  { key: "plantUml", label: "PlantUML", lang: "plantuml", note: "Component view" },
+  { key: "adr", label: "Decision record", lang: "markdown", note: "MADR-shaped ADR" },
+] as const;
+
+/**
+ * Companion artifacts for the design document.
+ *
+ * The diagram is what gets shown; these are what get committed next to the code and
+ * pasted into the architecture review. All text, so they render wherever the team
+ * already works without installing anything.
+ */
+function Artifacts({ artifacts }: { artifacts: NonNullable<PipelineResult["artifacts"]> }) {
+  const [pick, setPick] = useState<(typeof ARTIFACTS)[number]["key"]>("contextC4");
+  const [copied, setCopied] = useState(false);
+  const current = ARTIFACTS.find((a) => a.key === pick)!;
+  const body = artifacts[pick] ?? "";
+
+  return (
+    <div className="artifacts">
+      <div className="artifact-picker">
+        {ARTIFACTS.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            className={pick === a.key ? "on" : ""}
+            onClick={() => {
+              setPick(a.key);
+              setCopied(false);
+            }}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="artifact-body">
+        <div className="artifact-head">
+          <span className="artifact-note">{current.note}</span>
+          <button
+            className="btn sm"
+            onClick={() => {
+              void navigator.clipboard?.writeText(body);
+              setCopied(true);
+            }}
+          >
+            {copied ? "Copied" : `Copy ${current.lang}`}
+          </button>
+        </div>
+        <pre className="code">{body}</pre>
+      </div>
+    </div>
+  );
+}
+
+const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
+
 function statusTone(s: string) {
   if (s === "completed" || s === "skipped") return "done";
   if (s === "failed") return "failed";
@@ -148,6 +209,12 @@ function DiagramViewer({ svg, shapes }: { svg: string; shapes: number }) {
   const [full, setFull] = useState(false);
 
   const fit = useCallback(() => setView({ scale: 1, x: 0, y: 0 }), []);
+
+  // React keeps this component mounted between runs, so without this a new drawing
+  // opens at the previous zoom and pan — often scrolled to empty space.
+  useEffect(() => {
+    setView({ scale: 1, x: 0, y: 0 });
+  }, [svg]);
 
   const zoomBy = useCallback((factor: number, at?: { x: number; y: number }) => {
     setView((v) => {
@@ -179,7 +246,19 @@ function DiagramViewer({ svg, shapes }: { svg: string; shapes: number }) {
   }, [zoomBy]);
 
   return (
-    <div className={`viewer ${full ? "full" : ""}`} ref={frame}>
+    <div
+      className={`viewer ${full ? "full" : ""}`}
+      ref={frame}
+      tabIndex={0}
+      // scoped to the viewer, so +/-/0 never steal keys from the model editor
+      onKeyDown={(e) => {
+        if (e.key === "+" || e.key === "=") zoomBy(1.25);
+        else if (e.key === "-") zoomBy(1 / 1.25);
+        else if (e.key === "0") fit();
+        else return;
+        e.preventDefault();
+      }}
+    >
       <div
         className="viewer-stage"
         onPointerDown={(e) => {
@@ -243,7 +322,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [editJson, setEditJson] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"diagram" | "edit" | "model" | "xml">("diagram");
+  const [tab, setTab] = useState<"diagram" | "edit" | "artifacts" | "model" | "xml">("diagram");
   const [editorDown, setEditorDown] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem("theme") !== "light");
   const [elapsed, setElapsed] = useState(0);
@@ -592,22 +671,28 @@ export default function App() {
 
                 <div className="stage-tools">
                   <div className="segmented" role="tablist">
-                    {(["diagram", "edit", "model", "xml"] as const).map((t) => (
+                    {(["diagram", "edit", "artifacts", "model", "xml"] as const).map((t) => (
                       <button
                         key={t}
                         role="tab"
                         aria-selected={tab === t}
                         className={tab === t ? "on" : ""}
                         onClick={() => setTab(t)}
-                        disabled={t !== "model" && !result?.drawioXml}
+                        disabled={
+                          t === "artifacts"
+                            ? !result?.artifacts
+                            : t !== "model" && !result?.drawioXml
+                        }
                       >
                         {t === "diagram"
                           ? "Diagram"
                           : t === "edit"
                             ? "Edit"
-                            : t === "model"
-                              ? "Model"
-                              : "XML"}
+                            : t === "artifacts"
+                              ? "Artifacts"
+                              : t === "model"
+                                ? "Model"
+                                : "XML"}
                       </button>
                     ))}
                   </div>
@@ -669,6 +754,15 @@ export default function App() {
                     </div>
                   ))}
 
+                {tab === "artifacts" &&
+                  (result?.artifacts ? (
+                    <Artifacts artifacts={result.artifacts} />
+                  ) : (
+                    <div className="hollow">
+                      <p>Artifacts appear once a model has been extracted.</p>
+                    </div>
+                  ))}
+
                 {tab === "model" && (
                   <div className="editor">
                     <textarea
@@ -689,7 +783,10 @@ export default function App() {
                 <div className="insights">
                   {result?.references && result.references.length > 0 && (
                     <div className="insight">
-                      <h3>Closest references</h3>
+                      <h3>
+                        Closest references
+                        <span className="insight-count">{result.references.length}</span>
+                      </h3>
                       {result.references.slice(0, 3).map((r) => (
                         <div key={r.ref.id} className="ref">
                           <span className="score">{Math.round(r.score * 100)}</span>
@@ -703,13 +800,28 @@ export default function App() {
                   )}
                   {result?.gaps && result.gaps.length > 0 && (
                     <div className="insight">
-                      <h3>Gaps found</h3>
-                      {result.gaps.map((g) => (
-                        <div key={g.id} className={`gap ${g.severity}`}>
-                          <strong>{g.message}</strong>
-                          {g.suggestion && <p>{g.suggestion}</p>}
-                        </div>
-                      ))}
+                      <h3>
+                        Gaps found
+                        <span className="insight-count">
+                          {(() => {
+                            const high = result.gaps.filter((g) => g.severity === "high").length;
+                            return high ? `${high} to resolve` : `${result.gaps.length}`;
+                          })()}
+                        </span>
+                      </h3>
+                      {[...result.gaps]
+                        // what blocks a sign-off goes first; nits should never bury it
+                        .sort(
+                          (a, b) =>
+                            SEVERITY_RANK[a.severity ?? "low"] - SEVERITY_RANK[b.severity ?? "low"]
+                        )
+                        .map((g) => (
+                          <div key={g.id} className={`gap ${g.severity}`}>
+                            <span className={`gap-sev ${g.severity}`}>{g.severity}</span>
+                            <strong>{g.message}</strong>
+                            {g.suggestion && <p>{g.suggestion}</p>}
+                          </div>
+                        ))}
                     </div>
                   )}
                 </div>

@@ -3,15 +3,16 @@
   "configurations": [
     {
       "name": "cap",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev:cap"],
-      "port": 4004
+      "url": "http://localhost:4004",
+      "port": 4004,
+      "autoPort": false
     },
     {
       "name": "web",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev:web"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": false
     }
   ]
 }

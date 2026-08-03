@@ -9,6 +9,8 @@
 
 /** Every valid `SAPIcon=` value. Never emit a name that is not in this set. */
 export const SAP_ICON_CATALOG: ReadonlySet<string> = new Set([
+  // the corporate mark, used in zone headers as SAP's own diagrams do
+  "SAP_Logo",
   "API_Business_Hub_Enterprise",
   "Application_Autoscaler",
   "Application_Frontend_Service",

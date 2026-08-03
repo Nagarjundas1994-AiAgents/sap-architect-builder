@@ -105,6 +105,7 @@ module.exports = class ArchitectService extends cds.ApplicationService {
         model: cfg.model,
       });
 
+      this._attachArtifacts(result);
       await this._persistJob(result, {});
       return this._toJobResult(result);
     });
@@ -181,8 +182,25 @@ module.exports = class ArchitectService extends cds.ApplicationService {
       requireHumanReview: !autoApprove && process.env.REQUIRE_HUMAN_REVIEW !== "false",
     });
 
+    this._attachArtifacts(result);
     await this._persistJob(result, meta);
     return this._toJobResult(result);
+  }
+
+  /**
+   * Derive the companion artifacts (C4, sequence, identity flow, PlantUML, ADR) from
+   * the same model the diagram was drawn from, so a design document and the picture
+   * can never disagree. Pure string building — cheap enough to do on every run.
+   */
+  _attachArtifacts(result) {
+    const model = result?.approved || result?.refined || result?.extracted;
+    if (!model) return;
+    try {
+      result.artifacts = this.core.buildArtifacts(model, result.gaps ?? []);
+    } catch (e) {
+      // artifacts are a companion, never the reason a pipeline run fails
+      console.warn("[cap] artifact generation failed:", e.message);
+    }
   }
 
   async _health() {

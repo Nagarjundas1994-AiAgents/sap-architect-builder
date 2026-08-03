@@ -90,6 +90,15 @@ export interface PipelineResult {
   approved?: ArchitectureModel;
   gaps?: GapFinding[];
   references?: ScoredRef[];
+  /** Companion artifacts derived from the same approved model as the diagram. */
+  artifacts?: {
+    contextC4: string;
+    containerC4: string;
+    sequence: string;
+    identityFlow: string;
+    plantUml: string;
+    adr: string;
+  };
   drawioXml?: string;
   error?: string;
   engine?: string;

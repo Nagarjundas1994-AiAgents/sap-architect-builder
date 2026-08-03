@@ -13,6 +13,7 @@ import { profileFor, stereotypeMarkup } from "./styles.js";
 import { layoutTree, type LayoutEdge, type TreeNode } from "./layout.js";
 import { DiagramDoc, esc, labelMarkup } from "./mxfile.js";
 import {
+  FLOW_COLOR,
   FLOW_LABEL,
   GRID,
   INK,
@@ -35,9 +36,13 @@ import {
   chipStyle,
   connectorStyle,
   legendStyle,
+  legendEntryStyle,
+  legendLineStyle,
+  legendSwatchStyle,
   separatorStyle,
   subtitleStyle,
   titleStyle,
+  zoneMarkStyle,
   type FlowSemantic,
   type Role,
 } from "./theme.js";
@@ -128,6 +133,9 @@ const FLOW_SEMANTIC: Record<FlowMode, FlowSemantic> = {
   batch: "batch",
   trust: "trust",
   admin: "control",
+  agent: "agent",
+  authorization: "authorization",
+  provisioning: "provisioning",
 };
 
 function zoneRole(z: ArchitectureZone): Role {
@@ -142,9 +150,23 @@ function componentRole(c: ArchitectureComponent, zones: Map<string, Architecture
   return z ? zoneRole(z) : "neutral";
 }
 
-function flowSemantic(mode?: FlowMode, protocol?: string): FlowSemantic {
+/**
+ * Colour follows meaning, and the protocol usually states the meaning outright.
+ * A model that labels an edge "SAML" or "A2A" but omits `mode` still gets the right
+ * colour, so the drawing stays readable regardless of how carefully it was tagged.
+ */
+function flowSemantic(mode?: FlowMode, protocol?: string, label?: string): FlowSemantic {
   if (mode) return FLOW_SEMANTIC[mode] ?? "data";
-  if (protocol && /event|kafka|mesh|pubsub/i.test(protocol)) return "event";
+  const text = `${protocol ?? ""} ${label ?? ""}`;
+  if (!text.trim()) return "data";
+  if (/\ba2a\b|agent[- ]?to[- ]?agent|agent2agent/i.test(text)) return "agent";
+  if (/\bscim\b|provision/i.test(text)) return "provisioning";
+  if (/\bsaml\b|\boidc\b|\boauth\b|\bjwt\b|\bsso\b|trust|federat|authenticat/i.test(text))
+    return "trust";
+  if (/authoriz|\bauthz\b|\bpolicy\b|\bscope\b|role collection/i.test(text)) return "authorization";
+  if (/\bmcp\b|websocket|\bsse\b/i.test(text)) return "async";
+  if (/event|kafka|mesh|pubsub|\bamqp\b|\bmqtt\b/i.test(text)) return "event";
+  if (/batch|nightly|scheduled|replicat/i.test(text)) return "batch";
   return "data";
 }
 
@@ -400,6 +422,22 @@ export function generateDrawioXml(
     target: f.targetId,
   }));
 
+  // Ownership reads left to right: the people, then the ground you run, then the
+  // ground you do not. Layering alone cannot know this — a zone with no inbound flow
+  // lands in the first column, which is how an on-premise estate ends up drawn to the
+  // left of the platform that reaches into it. These edges are layout hints only:
+  // they order the columns and are never emitted as connectors.
+  const rootZones = (model.zones ?? []).filter((z) => !z.parentId);
+  const rank = (z: ArchitectureZone) =>
+    z.kind === "user" ? 0 : ["on-premise", "hyperscaler", "partner"].includes(z.kind) ? 2 : 1;
+  for (const from of rootZones) {
+    for (const to of rootZones) {
+      if (rank(from) < rank(to)) {
+        edges.push({ id: `order-${from.id}-${to.id}`, source: from.id, target: to.id });
+      }
+    }
+  }
+
   // Connector labels and interface chips sit in the gap between columns, so the gap
   // has to be wide enough for the widest of them. Without this the layout is tight
   // and correct while the labels have nowhere to go.
@@ -464,11 +502,20 @@ export function generateDrawioXml(
     const origin = parent === lArch.id ? { x: 0, y: 0 } : zoneBox.get(parent)!;
     const depth = depthOf(z);
     const role = zoneRole(z);
-    const style = z.boundary ? boundaryStyle(role) : areaStyle(role, depth);
-    const target = z.boundary ? lBounds : lArch;
+
+    // A top-level zone is the landscape itself and is always drawn as a filled
+    // panel, even when it also marks a trust or network boundary — models label
+    // almost every zone with one, and rendering those as transparent dashed
+    // overlays turned the whole drawing into outlines. The dashed overlay is kept
+    // for boundaries drawn *inside* a landscape, which is what it is for; the
+    // boundary kind stays on the cell either way.
+    const asOverlay = Boolean(z.boundary) && Boolean(z.parentId);
+    const marked = !asOverlay && !z.parentId && (z.kind === "sap-btp" || z.kind === "sap-cloud");
+    const style = asOverlay ? boundaryStyle(role) : areaStyle(role, depth, marked);
+    const target = asOverlay ? lBounds : lArch;
     // a boundary overlay is not a container, so it stays on the layer, not nested
-    const useParent = z.boundary ? lBounds.id : parent;
-    const useOrigin = z.boundary ? { x: 0, y: 0 } : origin;
+    const useParent = asOverlay ? lBounds.id : parent;
+    const useOrigin = asOverlay ? { x: 0, y: 0 } : origin;
     doc.shape(target, {
       id: z.id,
       label:
@@ -487,6 +534,22 @@ export function generateDrawioXml(
         tenant: z.tenant,
       },
     });
+
+    // SAP-owned ground carries the mark in its header, the way the published
+    // reference sheets title "SAP BTP" and "SAP Cloud Solutions".
+    if (marked && !asOverlay) {
+      doc.shape(target, {
+        id: `${z.id}-mark`,
+        label: "",
+        style: zoneMarkStyle(),
+        x: SPACE.sm,
+        y: SPACE.xs + 2,
+        w: 34,
+        h: 17,
+        parent: z.id,
+        attrs: { type: "zone-mark" },
+      });
+    }
   }
 
   // Actors
@@ -676,7 +739,7 @@ export function generateDrawioXml(
 
   for (const f of flows) {
     if (!placed.has(f.sourceId) || !placed.has(f.targetId)) continue;
-    const semantic = flowSemantic(f.mode, f.protocol);
+    const semantic = flowSemantic(f.mode, f.protocol, f.label);
     usedSemantics.add(semantic);
 
     const srcId = attachPoint(f.sourceId, f.targetId);
@@ -799,25 +862,85 @@ export function generateDrawioXml(
     });
   }
 
-  const legendEntries = model.legend
-    ? [...buildLegend(model, usedSemantics, zones), ...profile.legend]
-    : [];
-  const legendH = legendEntries.length ? 32 + legendEntries.length * 18 : 0;
+  // A key belongs on a drawing whose colours carry meaning. It is drawn as real
+  // swatches — a dot in the connector's own colour, a sample of its line — because a
+  // legend that only names hues in prose cannot be checked against the diagram.
+  const keyRows = buildLegendRows(model, usedSemantics, zones);
   const legendY = maxY + SPACE.lg;
-  if (legendEntries.length) doc.shape(lNotes, {
-    id: "legend",
-    label: [`&lt;b&gt;Legend&lt;/b&gt;`, ...legendEntries.map((e) => esc(`— ${e}`))].join("&#xa;"),
-    style: legendStyle(),
-    x: SPACE.lg,
-    y: legendY,
-    w: 360,
-    h: legendH,
-    parent: lNotes.id,
-    attrs: { type: "legend" },
-  });
+  let legendH = 0;
+  if (model.legend !== false && keyRows.length) {
+    const COLS = keyRows.length > 5 ? 2 : 1;
+    const rows = Math.ceil(keyRows.length / COLS);
+    const COL_W = 250;
+    const ROW_H = 22;
+    legendH = 34 + rows * ROW_H + SPACE.xs;
+    const legendW = COLS * COL_W + SPACE.md;
+
+    doc.shape(lNotes, {
+      id: "legend",
+      label: "&lt;b&gt;Legend&lt;/b&gt;",
+      style: legendStyle(),
+      x: SPACE.lg,
+      y: legendY,
+      w: legendW,
+      h: legendH,
+      parent: lNotes.id,
+      attrs: { type: "legend" },
+    });
+
+    keyRows.forEach((row, i) => {
+      const col = Math.floor(i / rows);
+      const rowIndex = i % rows;
+      const x = SPACE.lg + SPACE.sm + col * COL_W;
+      const y = legendY + 30 + rowIndex * ROW_H;
+
+      doc.shape(lNotes, {
+        id: `legend-swatch-${i}`,
+        label: "",
+        style:
+          row.kind === "line"
+            ? legendLineStyle(row.color, row.dashed)
+            : legendSwatchStyle(row.color, row.kind),
+        x,
+        y: row.kind === "line" ? y + 5 : y + 1,
+        w: row.kind === "line" ? 26 : 12,
+        h: row.kind === "line" ? 2 : 12,
+        parent: lNotes.id,
+        attrs: { type: "legend-key" },
+      });
+      doc.shape(lNotes, {
+        id: `legend-label-${i}`,
+        label: esc(row.label),
+        style: legendEntryStyle(),
+        x: x + 34,
+        y,
+        w: COL_W - 44,
+        h: 16,
+        parent: lNotes.id,
+        attrs: { type: "legend-key" },
+      });
+    });
+  }
 
   // ── Network / ownership dividers ─────────────────────────────────────────
-  for (const [i, d] of (model.dividers ?? []).entries()) {
+  // Where the landscape leaves SAP-managed ground for a third party or an
+  // on-premise network, that crossing is the single most consequential fact on the
+  // drawing. Models rarely declare it, so derive it: rule off before the leftmost
+  // externally-owned root zone. An explicit `dividers` list always wins.
+  const autoDividers = (): Array<{ label: string; afterZoneId: string }> => {
+    const roots = (model.zones ?? [])
+      .filter((z) => !z.parentId && zoneBox.has(z.id))
+      .sort((a, b) => zoneBox.get(a.id)!.x - zoneBox.get(b.id)!.x);
+    const firstExternal = roots.findIndex((z) =>
+      ["on-premise", "hyperscaler", "partner"].includes(z.kind)
+    );
+    // needs something on both sides to be a boundary rather than a margin
+    if (firstExternal <= 0) return [];
+    return [{ label: "Network", afterZoneId: roots[firstExternal - 1].id }];
+  };
+  const dividers = model.dividers?.length ? model.dividers : autoDividers();
+
+  for (const [i, d] of dividers.entries()) {
     const after = zoneBox.get(d.afterZoneId);
     if (!after) continue;
     const x = Math.round(after.x + after.w + SPACE.lg);
@@ -843,9 +966,16 @@ export function generateDrawioXml(
 
   // ── Title block ──────────────────────────────────────────────────────────
   const contentRight = Math.max(maxX, 900);
-  let footerBottom = Math.max(maxY, legendEntries.length ? legendY + legendH : 0);
-  if (model.footer) {
-    const f = model.footer;
+  let footerBottom = Math.max(maxY, legendH ? legendY + legendH : 0);
+  // Every published reference sheet carries a title block: what it is, when it last
+  // changed, and a short id to quote in review. Models rarely fill it in, so it is
+  // derived rather than omitted — a drawing with no provenance is not reviewable.
+  if (model.footer !== null) {
+    const f = {
+      label: model.footer?.label ?? model.title,
+      updated: model.footer?.updated ?? (model.createdAt ?? new Date().toISOString()).slice(0, 10),
+      reference: model.footer?.reference ?? shortId(model),
+    };
     const y = footerBottom + SPACE.lg;
     doc.freeEdge(lNotes, {
       id: "footer-rule",
@@ -905,6 +1035,28 @@ function ceilTo(n: number, step: number) {
   return Math.ceil(n / step) * step;
 }
 
+/**
+ * Short, stable identifier for the drawing — the thing a reviewer quotes in a mail
+ * ("the one ending b6c158"). Derived from the content, so redrawing the same model
+ * yields the same id and a genuine change yields a new one.
+ */
+function shortId(model: ArchitectureModel): string {
+  const seed = [
+    model.title,
+    model.level,
+    ...(model.zones ?? []).map((z) => z.id),
+    ...(model.components ?? []).map((c) => `${c.id}:${c.label}`),
+    ...(model.flows ?? []).map((f) => `${f.sourceId}>${f.targetId}`),
+  ].join("|");
+  // FNV-1a: tiny, dependency-free, and stable across runs
+  let h = 0x811c9dc5;
+  for (let i = 0; i < seed.length; i++) {
+    h ^= seed.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0").slice(0, 6);
+}
+
 function diagramPageName(model: ArchitectureModel): string {
   const style = model.style ?? "solution";
   const map: Record<string, string> = {
@@ -934,31 +1086,60 @@ function hasRoomForChip(
   return gapX >= chipW + 24 || gapY >= 48;
 }
 
-function buildLegend(
+interface LegendRow {
+  kind: "dot" | "area" | "line";
+  color: string;
+  label: string;
+  dashed?: boolean;
+}
+
+/**
+ * Rows for the key, in the order a reader needs them: what the colours of the
+ * connectors mean first, then the area hues, then the line conventions. Only what
+ * the drawing actually uses appears — a key listing absent symbols is noise.
+ */
+function buildLegendRows(
   model: ArchitectureModel,
   semantics: Set<FlowSemantic>,
   zones: Map<string, ArchitectureZone>
-): string[] {
-  const out: string[] = [];
-  const roles = new Set<Role>();
-  for (const z of zones.values()) roles.add(zoneRole(z));
+): LegendRow[] {
+  const rows: LegendRow[] = [];
+
+  for (const s of semantics) {
+    rows.push({
+      kind: "dot",
+      color: FLOW_COLOR[s],
+      label: FLOW_LABEL[s],
+      dashed: s === "event" || s === "batch",
+    });
+  }
 
   const roleLabel: Partial<Record<Role, string>> = {
     platform: "Platform / hosted services",
-    application: "Custom-built application domain",
+    application: "Custom application domain",
     data: "Data & persistence",
     integration: "Integration & mediation",
     security: "Identity & security",
-    external: "External / third-party",
+    external: "External / third party",
     edge: "Edge & network",
     neutral: "Users & channels",
   };
-  for (const r of roles) if (roleLabel[r]) out.push(`${roleLabel[r]} (${r} hue)`);
-  if ((model.zones ?? []).some((z) => z.boundary)) out.push("Dashed enclosure — trust boundary");
-  for (const s of semantics) out.push(FLOW_LABEL[s]);
-  if ((model.flows ?? []).some((f) => f.bidirectional)) out.push("Double arrow — mutual flow");
-  if ((model.flows ?? []).some((f) => f.protocol)) out.push("Rounded chip — interface / protocol");
-  return out;
+  const roles = new Set<Role>();
+  for (const z of zones.values()) roles.add(zoneRole(z));
+  for (const r of roles) {
+    if (roleLabel[r]) rows.push({ kind: "area", color: PALETTE[r].line, label: roleLabel[r]! });
+  }
+
+  if ((model.zones ?? []).some((z) => z.boundary)) {
+    rows.push({ kind: "line", color: PALETTE.security.line, label: "Trust boundary", dashed: true });
+  }
+  if ((model.flows ?? []).some((f) => f.mode === "event" || f.mode === "batch")) {
+    rows.push({ kind: "line", color: FLOW_COLOR.event, label: "Asynchronous / scheduled", dashed: true });
+  }
+  if ((model.flows ?? []).some((f) => f.protocol)) {
+    rows.push({ kind: "dot", color: INK.muted, label: "Chip — interface / protocol" });
+  }
+  return rows;
 }
 
 export { CARD_W, CARD_H };

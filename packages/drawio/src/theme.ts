@@ -92,32 +92,60 @@ export const INK = {
   hairline: "#D9DEE3",
 } as const;
 
-/** Connector semantics. One meaning per colour, declared in the legend. */
-export type FlowSemantic = "data" | "control" | "event" | "trust" | "async" | "batch";
+/**
+ * Connector semantics. One meaning per colour, declared in the legend.
+ *
+ * The distinctions mirror the ones SAP's architecture drawings make, because those
+ * are the ones a reviewer checks: authenticating a caller is not authorizing it,
+ * provisioning an identity is not either, and an agent-to-agent conversation is not
+ * an ordinary request.
+ */
+export type FlowSemantic =
+  | "data"
+  | "control"
+  | "event"
+  | "trust"
+  | "async"
+  | "batch"
+  | "agent"
+  | "authorization"
+  | "provisioning";
 
+/**
+ * Taken from the published legends: authentication and trust are green, identity
+ * provisioning (SCIM, user and role replication) is violet, access and data movement
+ * are slate. Provisioning is deliberately *not* green — it sits next to
+ * authentication in every identity diagram and the two must stay separable.
+ */
 export const FLOW_COLOR: Record<FlowSemantic, string> = {
   data: "#5B738B",
   control: "#0070F2",
   event: "#E76500",
   trust: "#256F3A",
   async: "#049F9A",
-  batch: "#7858FF",
+  batch: "#8B5E3C",
+  agent: "#C0399F",
+  authorization: "#5D36FF",
+  provisioning: "#7858FF",
 };
 
 export const FLOW_LABEL: Record<FlowSemantic, string> = {
   data: "Data flow",
-  control: "Control / request",
+  control: "Access / request",
   event: "Event (asynchronous)",
-  trust: "Trust / authentication",
+  trust: "Authentication / trust",
   async: "Asynchronous channel",
   batch: "Batch / scheduled",
+  agent: "Agent-to-agent (A2A)",
+  authorization: "Authorization / policy",
+  provisioning: "Provisioning",
 };
 
 // ── Style builders ─────────────────────────────────────────────────────────
 const join = (parts: Array<string | false | undefined>) => parts.filter(Boolean).join("");
 
 /** Container for a landscape, zone, tenant or environment. */
-export function areaStyle(role: Role, depth = 0): string {
+export function areaStyle(role: Role, depth = 0, marked = false): string {
   const c = PALETTE[role];
   // Alternate filled / plain so nesting stays legible instead of stacking tints.
   const fill = depth % 2 === 1 ? INK.surface : c.wash;
@@ -125,7 +153,8 @@ export function areaStyle(role: Role, depth = 0): string {
     "rounded=1;whiteSpace=wrap;html=1;",
     `arcSize=${RADIUS.area};absoluteArcSize=1;`,
     `strokeColor=${c.line};fillColor=${fill};strokeWidth=${STROKE.regular};`,
-    "align=left;verticalAlign=top;spacingLeft=12;spacingTop=4;",
+    // leave room for the mark when one is drawn in the header
+    `align=left;verticalAlign=top;spacingLeft=${marked ? 58 : 12};spacingTop=4;`,
     `fontFamily=${FONT};fontSize=${depth === 0 ? TYPE.areaTitle : TYPE.subAreaTitle};`,
     // zone titles read as headings, not captions — bold and dark like the reference set
     `fontStyle=1;fontColor=${depth === 0 ? INK.strong : INK.muted};`,
@@ -249,6 +278,8 @@ export function chipStyle(semantic: FlowSemantic): string {
 /** Orthogonal connector carrying one semantic meaning. */
 export function connectorStyle(semantic: FlowSemantic, opts: { bidirectional?: boolean } = {}): string {
   const color = FLOW_COLOR[semantic];
+  // dashed marks what nobody is waiting on: published events and scheduled loads.
+  // Provisioning is drawn solid, as the reference identity diagrams draw SCIM.
   const dashed = semantic === "event" || semantic === "batch";
   return join([
     "edgeStyle=orthogonalEdgeStyle;rounded=1;arcSize=8;orthogonalLoop=1;jettySize=auto;html=1;",
@@ -357,6 +388,54 @@ export function legendStyle(): string {
     `strokeColor=${INK.hairline};fillColor=${INK.surface};strokeWidth=${STROKE.hairline};`,
     "align=left;verticalAlign=top;spacingLeft=12;spacingTop=8;",
     `fontFamily=${FONT};fontSize=${TYPE.legend};fontColor=${INK.muted};`,
+  ]);
+}
+
+/**
+ * Legend key marks.
+ *
+ * A dot for a semantic colour, a swatch for an area hue, a short rule for a line
+ * style — drawn in the same colours the diagram uses, so the key can be verified
+ * against the drawing rather than taken on trust.
+ */
+export function legendSwatchStyle(color: string, kind: "dot" | "area"): string {
+  return kind === "area"
+    ? join([
+        "rounded=1;whiteSpace=wrap;html=1;",
+        `arcSize=${RADIUS.card};absoluteArcSize=1;`,
+        `strokeColor=${color};fillColor=${color}22;strokeWidth=${STROKE.regular};`,
+        "resizable=0;points=[];",
+      ])
+    : join([
+        "ellipse;whiteSpace=wrap;html=1;",
+        `strokeColor=none;fillColor=${color};`,
+        "resizable=0;points=[];",
+      ]);
+}
+
+export function legendLineStyle(color: string, dashed = false): string {
+  return join([
+    "shape=line;direction=east;html=1;",
+    `strokeColor=${color};strokeWidth=${STROKE.emphasis};`,
+    dashed && "dashed=1;dashPattern=6 4;",
+    "resizable=0;points=[];",
+  ]);
+}
+
+/** The SAP mark shown in the header of SAP-owned zones. */
+export function zoneMarkStyle(): string {
+  return join([
+    "shape=mxgraph.sap.icon;SAPIcon=SAP_Logo;",
+    "strokeColor=none;fillColor=none;gradientColor=none;aspect=fixed;html=1;",
+    "resizable=0;points=[];",
+  ]);
+}
+
+export function legendEntryStyle(): string {
+  return join([
+    "text;html=1;strokeColor=none;fillColor=none;whiteSpace=wrap;rounded=0;",
+    "align=left;verticalAlign=middle;",
+    `fontFamily=${FONT};fontSize=${TYPE.legend};fontColor=${INK.strong};`,
   ]);
 }
 

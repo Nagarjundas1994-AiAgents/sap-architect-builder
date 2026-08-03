@@ -18,7 +18,13 @@ import {
   theme,
   validateDrawioXml,
 } from "@sap-architect/drawio";
-import { resumeArchitecturePipeline, validateArchitectureModel } from "@sap-architect/core";
+import {
+  analyzeGaps,
+  claimsToBeSap,
+  resumeArchitecturePipeline,
+  validateArchitectureModel,
+  verifySapProduct,
+} from "@sap-architect/core";
 
 const MODEL = {
   id: "m1",
@@ -381,4 +387,376 @@ test("a long flow chain wraps instead of drawing an unreadable ribbon", () => {
   assert.ok(wide > 5, `unwrapped chain should be a ribbon, got ${wide.toFixed(2)}`);
   assert.ok(wrapped < wide / 2, `wrapping should roughly halve the ratio: ${wrapped.toFixed(2)} vs ${wide.toFixed(2)}`);
   assert.deepEqual(validateDrawioXml(generateDrawioXml(model, {})).issues, [], "wrapped output must still validate");
+});
+
+test("SAP catalogue resolves real products, renames old names, flags invented ones", () => {
+  // real products, however they are written
+  for (const name of [
+    "SAP Integration Suite",
+    "SAP S/4HANA Cloud",
+    "sap hana cloud",
+    "SAP Build Work Zone, standard edition",
+  ]) {
+    assert.equal(verifySapProduct(name).status, "known", `${name} should be known`);
+  }
+
+  // renamed / colloquial names resolve to the current official name
+  assert.deepEqual(verifySapProduct("SAP CPI"), {
+    status: "renamed",
+    canonical: "SAP Integration Suite",
+  });
+  assert.equal(verifySapProduct("SAP Data Warehouse Cloud").canonical, "SAP Datasphere");
+  assert.equal(verifySapProduct("XSUAA").canonical, "SAP Authorization and Trust Management Service");
+
+  // a plausible-sounding invention must not pass
+  const fake = verifySapProduct("SAP Workflow Orchestration Cloud");
+  assert.equal(fake.status, "unverified", "invented SAP names must not verify");
+
+  // a near-miss gets a correction rather than a flat rejection
+  assert.equal(verifySapProduct("SAP Integraton Suite").suggestion, "SAP Integration Suite");
+
+  // non-SAP systems are none of our business
+  assert.equal(claimsToBeSap("Plant Historian Database"), false);
+  assert.equal(claimsToBeSap("Salesforce"), false);
+  assert.equal(claimsToBeSap("SAP Ariba"), true);
+});
+
+test("gap analysis raises invented SAP product names at the review gate", () => {
+  const model = {
+    ...MODEL,
+    components: [
+      { id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "z1" },
+      { id: "c2", label: "SAP Cloud Identity Services", kind: "identity", zoneId: "z1" },
+      { id: "c3", label: "SAP Data Orchestration Hub", kind: "sap-service", zoneId: "z1" },
+      { id: "c4", label: "Plant Historian DB", kind: "database", zoneId: "z1" },
+    ],
+    flows: [
+      { id: "f1", sourceId: "c1", targetId: "c3" },
+      { id: "f2", sourceId: "c3", targetId: "c4" },
+    ],
+  };
+
+  const gaps = analyzeGaps(model, []);
+  const invented = gaps.find((g) => g.id === "gap-unverified-c3");
+  assert.ok(invented, "the invented SAP product must be reported");
+  assert.equal(invented.severity, "high");
+
+  // real products and non-SAP systems must not be flagged
+  assert.ok(!gaps.some((g) => g.id === "gap-unverified-c1"), "real SAP product flagged");
+  assert.ok(!gaps.some((g) => g.id === "gap-unverified-c4"), "non-SAP system flagged");
+});
+
+test("duplicate ids are repaired instead of failing the extraction", async () => {
+  const { extractArchitectureFromImage } = await import("@sap-architect/core");
+  // mock provider path: exercises normalizeModel, which is where the repair lives
+  const model = await extractArchitectureFromImage({ hints: "duplicate id smoke" }, {});
+  const ids = [
+    ...model.zones.map((z) => z.id),
+    ...model.actors.map((a) => a.id),
+    ...model.components.map((c) => c.id),
+    ...model.flows.map((f) => f.id),
+  ];
+  assert.equal(ids.length, new Set(ids).size, "extraction must not emit duplicate ids");
+  assert.equal(validateArchitectureModel(model).ok, true, "extracted model must validate");
+
+  // every flow endpoint and zone reference must still resolve after any renaming
+  const entities = new Set([...model.components.map((c) => c.id), ...model.actors.map((a) => a.id)]);
+  const zones = new Set(model.zones.map((z) => z.id));
+  for (const f of model.flows) {
+    assert.ok(entities.has(f.sourceId), `flow ${f.id} lost its source`);
+    assert.ok(entities.has(f.targetId), `flow ${f.id} lost its target`);
+  }
+  for (const c of model.components) assert.ok(zones.has(c.zoneId), `${c.id} lost its zone`);
+});
+
+test("artifacts derive from the reviewed model and stay consistent with it", async () => {
+  const { buildArtifacts } = await import("@sap-architect/core");
+  const model = {
+    ...NESTED,
+    summary: "Side-by-side extension keeping the core clean.",
+    components: [
+      ...NESTED.components,
+      { id: "cid", label: "SAP Cloud Identity Services", kind: "identity", zoneId: "zs" },
+    ],
+    flows: [
+      ...NESTED.flows,
+      { id: "f5", sourceId: "a1", targetId: "cid", label: "Authenticate", mode: "trust" },
+    ],
+  };
+  const gaps = [
+    { id: "g1", category: "security", severity: "high", message: "No rate limiting", suggestion: "Add one" },
+    { id: "g2", category: "naming", severity: "low", message: "Old product name" },
+  ];
+  const a = buildArtifacts(model, gaps);
+
+  // C4 context: every actor and component present, no dangling relationship
+  assert.match(a.contextC4, /^C4Context/);
+  assert.match(a.contextC4, /Person\(a1,/);
+  for (const c of model.components) assert.ok(a.contextC4.includes(`"${c.label}"`), `${c.label} missing from context`);
+
+  // Container view keeps nesting: the subaccount boundary is inside the platform one
+  assert.match(a.containerC4, /^C4Container/);
+  assert.ok(a.containerC4.indexOf("Container_Boundary(z1") < a.containerC4.indexOf("Container_Boundary(zs"));
+
+  // Sequence: async flows use the non-blocking arrow, sync ones do not
+  assert.match(a.sequence, /^sequenceDiagram/);
+  assert.match(a.sequence, /c1-\)c3:/, "async A2A flow should be a non-blocking arrow");
+  assert.match(a.sequence, /a1->>c1:/, "sync flow should be a blocking arrow");
+
+  // Identity view isolates trust only — the OData flow must not appear
+  assert.match(a.identityFlow, /Authenticate/);
+  assert.ok(!a.identityFlow.includes("posts"), "identity view must not include unrelated flows");
+
+  // PlantUML is balanced and complete
+  assert.match(a.plantUml, /^@startuml/);
+  assert.match(a.plantUml, /@enduml$/);
+
+  // ADR records the high-severity gap rather than hiding it
+  assert.match(a.adr, /# ADR-001/);
+  assert.match(a.adr, /No rate limiting/);
+  assert.match(a.adr, /SAP Integration Suite/);
+});
+
+test("artifacts survive hostile labels without breaking their syntax", async () => {
+  const { buildArtifacts } = await import("@sap-architect/core");
+  const nasty = {
+    ...MODEL,
+    title: 'Title with "quotes"\nand a newline',
+    components: [
+      { id: "c-1", label: 'SAP "Quoted" Service\nsecond line', kind: "sap-service", zoneId: "z1" },
+    ],
+    flows: [{ id: "f1", sourceId: "a1", targetId: "c-1", label: 'lab"el', protocol: "HTTP\nS" }],
+  };
+  const a = buildArtifacts(nasty, []);
+  for (const [name, text] of Object.entries(a)) {
+    if (name === "adr") continue; // markdown, quotes are fine
+    for (const line of text.split("\n")) {
+      // a stray quote from a label would leave an odd count and break the parser
+      const quotes = (line.match(/"/g) ?? []).length;
+      assert.equal(quotes % 2, 0, `${name} line has unbalanced quotes: ${line}`);
+      assert.ok(!line.includes("\r"), `${name} leaked a carriage return`);
+    }
+    assert.ok(!text.includes("\n\n\n"), `${name} has a torn label`);
+  }
+  // ids with hyphens must be normalised for Mermaid
+  assert.match(a.sequence, /c_1/);
+});
+
+test("ownership reads left to right and the network boundary is ruled off", () => {
+  const model = {
+    ...MODEL,
+    zones: [
+      // declared deliberately out of order — layout must not follow declaration
+      { id: "zonprem", label: "On-Premise Network", kind: "on-premise" },
+      { id: "zbtp", label: "SAP BTP", kind: "sap-btp" },
+      { id: "zusers", label: "Devices", kind: "user" },
+    ],
+    components: [
+      { id: "cop", label: "Plant Historian", kind: "database", zoneId: "zonprem" },
+      { id: "cis", label: "SAP Integration Suite", kind: "integration", zoneId: "zbtp" },
+      { id: "cui", label: "SAP Build Apps", kind: "custom-app", zoneId: "zusers" },
+    ],
+    flows: [
+      { id: "f1", sourceId: "cui", targetId: "cis", label: "calls", protocol: "HTTPS" },
+      { id: "f2", sourceId: "cis", targetId: "cop", label: "reads", protocol: "RFC" },
+    ],
+  };
+  const xml = generateDrawioXml(model, {});
+  const { abs } = parseCells(xml);
+  const x = (id) => abs.get(id)?.x ?? Number.NaN;
+
+  assert.ok(x("zusers") < x("zbtp"), "user zone must sit left of the platform");
+  assert.ok(x("zbtp") < x("zonprem"), "externally-owned zone must sit right of the platform");
+
+  // the crossing into third-party ground is ruled off
+  assert.match(xml, /boundary="network"/, "a network divider must be drawn");
+  // layout-only ordering hints must never become visible connectors
+  assert.ok(!xml.includes("order-zone"), "ordering hints leaked into the drawing");
+  assert.deepEqual(validateDrawioXml(xml).issues, [], "output must still validate");
+});
+
+test("legend is drawn as verifiable swatches in the diagram's own colours", () => {
+  const xml = generateDrawioXml(NESTED, {});
+  assert.match(xml, /type="legend"/, "legend box missing");
+  const keys = (xml.match(/type="legend-key"/g) ?? []).length;
+  assert.ok(keys >= 4, `expected swatch rows, got ${keys / 2}`);
+
+  // every semantic colour keyed must actually be used by a connector in the drawing
+  for (const hex of [theme.FLOW_COLOR.control, theme.FLOW_COLOR.async]) {
+    if (!xml.includes(`strokeColor=${hex};strokeWidth`)) continue;
+    assert.ok(xml.includes(hex), `legend colour ${hex} absent from the drawing`);
+  }
+  // opting out must still be honoured
+  assert.ok(!generateDrawioXml({ ...NESTED, legend: false }, {}).includes('type="legend"'));
+});
+
+test("every SAP product named in the official reference diagrams resolves", () => {
+  // taken from the SAP Architecture Center diagrams this generator is measured against
+  const fromReferences = [
+    "SAP Joule", "SAP Joule Studio", "SAP Agent Gateway", "SAP Cloud SDK for AI",
+    "SAP Integration Suite", "SAP Cloud Identity Services", "SAP S/4HANA",
+    "SAP SuccessFactors", "SAP Concur", "SAP Business Data Cloud",
+    "SAP Customer Experience", "SAP Business Network", "SAP LeanIX", "SAP4ME",
+    "SAP Cloud ALM", "SAP Build", "SAP Build Work Zone", "SAP AI Core",
+    "SAP AI Launchpad", "SAP HANA Cloud", "SAP Kyma", "SAP Build Code",
+    "SAP Cloud Connector", "SAP Destination Service", "SAP Connectivity Service",
+    "SAP Continuous Integration and Delivery", "SAP Generative AI Hub",
+    // component-of names the reference diagrams use for parts of a product
+    "SAP Joule UI", "SAP Joule User Interface", "SAP AI Core Runtime",
+  ];
+  const unresolved = fromReferences.filter((n) => verifySapProduct(n).status === "unverified");
+  assert.deepEqual(unresolved, [], "reference products must all resolve");
+
+  // and the guarantee that makes the catalogue worth having still holds
+  for (const invented of [
+    "SAP Workflow Orchestration Cloud",
+    "SAP Data Orchestration Hub",
+    "SAP Intelligent Ledger Cloud",
+  ]) {
+    assert.equal(verifySapProduct(invented).status, "unverified", `${invented} must not verify`);
+  }
+});
+
+test("connector colour follows SAP's semantics, inferred from the protocol when untagged", () => {
+  const model = {
+    ...MODEL,
+    zones: [{ id: "z1", label: "SAP BTP", kind: "sap-btp" }],
+    components: [
+      { id: "ui", label: "SAP Build Apps", kind: "custom-app", zoneId: "z1" },
+      { id: "ias", label: "SAP Cloud Identity Services", kind: "identity", zoneId: "z1" },
+      { id: "ag", label: "SAP Agent Gateway", kind: "agent", zoneId: "z1" },
+      { id: "is", label: "SAP Integration Suite", kind: "integration", zoneId: "z1" },
+      { id: "s4", label: "SAP S/4HANA Cloud", kind: "sap-product", zoneId: "z1" },
+    ],
+    flows: [
+      // untagged: meaning must be read out of the protocol
+      { id: "fa", sourceId: "ui", targetId: "ias", label: "Authenticate", protocol: "SAML" },
+      { id: "fb", sourceId: "ag", targetId: "is", label: "Calls agent", protocol: "A2A" },
+      { id: "fc", sourceId: "is", targetId: "ag", label: "Tools", protocol: "MCP" },
+      { id: "fd", sourceId: "ias", targetId: "s4", label: "Provision users", protocol: "SCIM" },
+      { id: "fe", sourceId: "s4", targetId: "is", label: "Publishes", protocol: "AMQP" },
+      { id: "ff", sourceId: "ui", targetId: "s4", label: "Reads", protocol: "OData V4" },
+    ],
+  };
+  const xml = generateDrawioXml(model, {});
+  const styleOf = (flowId) => {
+    const i = xml.indexOf(`id="${flowId}"`);
+    assert.ok(i > 0, `flow ${flowId} not emitted`);
+    return xml.slice(i, i + 700);
+  };
+  const C = theme.FLOW_COLOR;
+  assert.ok(styleOf("fa").includes(C.trust), "SAML must be authentication green");
+  assert.ok(styleOf("fb").includes(C.agent), "A2A must be agent magenta");
+  assert.ok(styleOf("fc").includes(C.async), "MCP must be async teal");
+  assert.ok(styleOf("fd").includes(C.provisioning), "SCIM must be provisioning violet");
+  assert.ok(styleOf("fe").includes(C.event), "AMQP must be event amber");
+  assert.ok(styleOf("ff").includes(C.data), "plain OData must stay data slate");
+
+  // authentication and provisioning sit side by side in identity diagrams, so they
+  // must never share a colour — this is the distinction the published legends make
+  assert.notEqual(C.trust, C.provisioning, "authentication and provisioning must differ");
+
+  // dashed is reserved for what nobody waits on; provisioning is drawn solid
+  assert.match(styleOf("fe"), /dashed=1/, "published events are dashed");
+  assert.ok(!/dashed=1/.test(styleOf("fd")), "provisioning is drawn solid");
+  assert.ok(!/dashed=1/.test(styleOf("fa")), "authentication is on the request path");
+
+  // an explicit mode always beats inference
+  const tagged = generateDrawioXml(
+    { ...model, flows: [{ id: "fz", sourceId: "ui", targetId: "s4", protocol: "SAML", mode: "batch" }] },
+    {}
+  );
+  assert.ok(tagged.slice(tagged.indexOf('id="fz"')).includes(C.batch), "explicit mode must win");
+
+  // and each semantic used appears in the legend
+  for (const key of ["trust", "agent", "async", "provisioning"]) {
+    assert.ok(xml.includes(theme.FLOW_LABEL[key]), `legend missing ${key}`);
+  }
+});
+
+test("a box labelled with two real products is not reported as invented", () => {
+  for (const compound of [
+    "SAP Build Code / Joule Studio",
+    "SAP Joule Studio / SAP AI Core",
+    "SAP Integration Suite and SAP Event Mesh",
+  ]) {
+    assert.notEqual(verifySapProduct(compound).status, "unverified", `${compound} is real`);
+  }
+  // one invented half still condemns the label
+  assert.equal(verifySapProduct("SAP Build Code / SAP Imaginary Cloud").status, "unverified");
+});
+
+test("no two connector semantics share a colour", () => {
+  const byColour = new Map();
+  for (const [semantic, colour] of Object.entries(theme.FLOW_COLOR)) {
+    assert.ok(!byColour.has(colour), `${byColour.get(colour)} and ${semantic} share ${colour}`);
+    byColour.set(colour, semantic);
+    assert.match(colour, /^#[0-9A-F]{6}$/i, `${semantic} colour must be a hex value`);
+    assert.ok(theme.FLOW_LABEL[semantic], `${semantic} has no legend label`);
+  }
+  assert.equal(byColour.size, Object.keys(theme.FLOW_COLOR).length);
+});
+
+test("full service names resolve without letting inventions through", () => {
+  for (const real of [
+    "SAP HTML5 Application Repository service for SAP BTP",
+    "SAP Object Store service on SAP BTP",
+    "SAP Alert Notification service for SAP BTP",
+  ]) {
+    assert.notEqual(verifySapProduct(real).status, "unverified", `${real} is a real service name`);
+  }
+  // the "service for SAP BTP" suffix must not launder an invented product
+  assert.equal(verifySapProduct("SAP Quantum Ledger service for SAP BTP").status, "unverified");
+});
+
+test("every drawing carries a title block with a stable identifier", () => {
+  const xml = generateDrawioXml(NESTED, {});
+  assert.match(xml, /type="footer"/, "title block missing");
+  const id = /reference="([a-f0-9]{6})"/.exec(xml);
+  assert.ok(id, "no diagram identifier emitted");
+  assert.match(xml, /Last update \d{4}-\d{2}-\d{2}/, "no last-update date");
+
+  // redrawing the same model must quote the same id; a real change must not
+  assert.equal(/reference="([a-f0-9]{6})"/.exec(generateDrawioXml(NESTED, {}))[1], id[1]);
+  const changed = generateDrawioXml({ ...NESTED, title: `${NESTED.title} v2` }, {});
+  assert.notEqual(/reference="([a-f0-9]{6})"/.exec(changed)[1], id[1]);
+
+  // and it can still be suppressed deliberately
+  assert.ok(!generateDrawioXml({ ...NESTED, footer: null }, {}).includes('type="footer"'));
+});
+
+test("landscape zones are filled panels; dashed overlays are only for inner boundaries", () => {
+  const model = {
+    ...MODEL,
+    zones: [
+      // models label almost every zone with a boundary — that must not turn the
+      // whole landscape into transparent outlines
+      { id: "zbtp", label: "SAP BTP", kind: "sap-btp", boundary: "trust" },
+      { id: "zsub", label: "Subaccount", kind: "sap-btp", parentId: "zbtp" },
+      { id: "zinner", label: "Secure enclave", kind: "custom", parentId: "zsub", boundary: "trust" },
+    ],
+    components: [
+      { id: "c1", label: "SAP Integration Suite", kind: "integration", zoneId: "zsub" },
+      { id: "c2", label: "SAP HANA Cloud", kind: "database", zoneId: "zinner" },
+    ],
+    flows: [{ id: "f1", sourceId: "c1", targetId: "c2", protocol: "SQL" }],
+  };
+  const xml = generateDrawioXml(model, {});
+  // the style of that cell alone — neighbouring cells have their own
+  const styleOf = (id) => {
+    const at = xml.indexOf(`id="${id}"`);
+    assert.ok(at > 0, `${id} not emitted`);
+    return (/style="([^"]*)"/.exec(xml.slice(at, at + 600)) ?? [, ""])[1];
+  };
+
+  // the top-level landscape keeps its fill despite declaring a boundary
+  assert.match(styleOf("zbtp"), /fillColor=#[0-9A-F]{6}/i, "root zone must be a filled panel");
+  assert.ok(!/fillColor=none/.test(styleOf("zbtp")), "root zone must not be a transparent overlay");
+  // and it carries the SAP mark in its header
+  assert.match(xml, /type="zone-mark"/, "SAP-owned root zone must carry the mark");
+  assert.match(xml, /SAPIcon=SAP_Logo/, "mark must use the SAP library asset");
+
+  // a boundary declared inside a landscape still renders as a dashed overlay
+  assert.match(styleOf("zinner"), /dashed=1/, "inner boundary keeps the dashed treatment");
+  assert.deepEqual(validateDrawioXml(xml).issues, []);
 });

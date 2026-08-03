@@ -3,6 +3,7 @@ import type {
   GapFinding,
   ReferenceArchitecture,
 } from "@sap-architect/shared";
+import { claimsToBeSap, verifySapProduct } from "../knowledge/sap-catalog.js";
 
 export function analyzeGaps(
   model: ArchitectureModel,
@@ -43,6 +44,36 @@ export function analyzeGaps(
         .filter((c) => (c.officialName ?? c.label).toLowerCase().includes("s/4"))
         .map((c) => c.id),
     });
+  }
+
+  // A name that presents itself as an SAP product must be one. An invented name is
+  // more damaging than a generic box because a reviewer will believe it, so this is
+  // raised high and surfaced before the diagram is drawn.
+  for (const c of model.components) {
+    const name = c.officialName ?? c.label;
+    if (!claimsToBeSap(name)) continue;
+    const verdict = verifySapProduct(name);
+    if (verdict.status === "renamed" && verdict.canonical) {
+      gaps.push({
+        id: `gap-renamed-${c.id}`,
+        category: "naming",
+        severity: "low",
+        message: `"${name}" is an older name for ${verdict.canonical}.`,
+        suggestion: `Rename to "${verdict.canonical}" to match current SAP naming.`,
+        relatedComponentIds: [c.id],
+      });
+    } else if (verdict.status === "unverified") {
+      gaps.push({
+        id: `gap-unverified-${c.id}`,
+        category: "naming",
+        severity: "high",
+        message: `"${name}" is not a recognised SAP product name.`,
+        suggestion: verdict.suggestion
+          ? `Did you mean "${verdict.suggestion}"? Otherwise rename it to what it actually is — an invented SAP name will be taken as real.`
+          : "Confirm against SAP Help Portal, or relabel it as a custom or third-party component.",
+        relatedComponentIds: [c.id],
+      });
+    }
   }
 
   for (const c of model.components) {

@@ -27,6 +27,21 @@ export {
   type ScoredReference,
 } from "./agents/retrieve.js";
 export { analyzeGaps } from "./agents/gaps.js";
+export {
+  claimsToBeSap,
+  verifySapProduct,
+  type ProductVerdict,
+} from "./knowledge/sap-catalog.js";
+export {
+  buildArtifacts,
+  toAdr,
+  toMermaidContainer,
+  toMermaidContext,
+  toMermaidIdentityFlow,
+  toMermaidSequence,
+  toPlantUml,
+  type ArchitectureArtifacts,
+} from "./artifacts/index.js";
 export { refineArchitecture } from "./agents/refine.js";
 export { validateArchitectureModel, validateDiagram } from "./agents/validate.js";
 export {

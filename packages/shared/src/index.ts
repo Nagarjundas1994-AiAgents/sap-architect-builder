@@ -24,7 +24,24 @@ export type ZoneKind =
   | "network"
   | "custom";
 
-export type FlowMode = "sync" | "async" | "event" | "batch" | "trust" | "admin";
+/**
+ * What a connector means. Drives its colour and the legend, so these are the
+ * distinctions SAP's own architecture drawings make rather than transport details:
+ * authentication is not authorization, and an agent-to-agent call is not a REST call.
+ */
+export type FlowMode =
+  | "sync"
+  | "async"
+  | "event"
+  | "batch"
+  | "trust"
+  | "admin"
+  /** Agent-to-agent (A2A) conversation between orchestrators and agents. */
+  | "agent"
+  /** Policy, scope or role decision — distinct from authenticating the caller. */
+  | "authorization"
+  /** Identity or content provisioning: SCIM, replication of users and roles. */
+  | "provisioning";
 
 export interface ArchitectureActor {
   id: string;
@@ -134,7 +151,11 @@ export interface ArchitectureModel {
   /** Draw a legend box. Off by default: a consistent grammar should not need one. */
   legend?: boolean;
   /** Title-block strip along the bottom edge. */
-  footer?: { label?: string; updated?: string; reference?: string };
+  /**
+   * Title block along the bottom edge. Drawn by default with values derived from the
+   * model; set to null to suppress it entirely.
+   */
+  footer?: { label?: string; updated?: string; reference?: string } | null;
   /** Vertical rules marking a network or ownership separation between zone columns. */
   dividers?: Array<{ label: string; afterZoneId: string }>;
   summary: string;

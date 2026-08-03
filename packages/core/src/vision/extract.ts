@@ -44,10 +44,71 @@ Rules:
   diagram sit in a zone — "Devices", "Channels", "Users" — give that zone
   kind:"user", even when it also holds phones or laptops. Exactly one zone.
 - Every zone you declare must hold something. Do not emit a zone you put no
-  components in and no actors in.`;
+  components in and no actors in.
+- Set "footer" to { "label": "<solution area>", "updated": "<ISO date>" } so the
+  drawing carries a title block.
+- Add a "dividers" entry when the landscape crosses an ownership or network
+  boundary — for example { "label": "Network", "afterZoneId": "<last SAP zone>" }
+  before a third-party or on-premise zone.
+- Use "mode" on flows deliberately — the connector colour and the legend come from
+  it, so it must state the meaning, not the transport:
+    "trust"         authentication, SSO, SAML/OIDC federation        (green)
+    "provisioning"  SCIM, identity or role replication               (violet)
+    "authorization" policy, scope or role decisions                  (indigo)
+    "agent"         agent-to-agent (A2A) conversations               (magenta)
+    "async"         MCP, WebSocket and other non-blocking channels   (teal)
+    "event"         published business events                        (amber, dashed)
+    "batch"         scheduled or nightly replication                 (brown, dashed)
+    "sync"          ordinary request/response                        (blue)
+  Leave "mode" out only when none of these apply.`;
+
+/**
+ * Give every entity a unique id, rewriting the references that pointed at the
+ * duplicates.
+ *
+ * Models reuse an id across kinds surprisingly often — a zone "users" and an actor
+ * "users" in the same document. Validation rejects that outright, which threw away a
+ * perfectly recoverable extraction and failed the whole run. Renaming the later
+ * collision keeps the architecture and costs nothing.
+ */
+function dedupeIds(raw: Partial<ArchitectureModel>): void {
+  const seen = new Set<string>();
+  const rename = new Map<string, string>();
+
+  const claim = (entity: { id?: string }, kind: string) => {
+    const original = entity.id ?? "";
+    let id = original || kind;
+    for (let n = 2; !id || seen.has(id); n++) id = `${original || kind}-${n}`;
+    seen.add(id);
+    if (id !== original) rename.set(`${kind}:${original}`, id);
+    entity.id = id;
+  };
+
+  for (const z of raw.zones ?? []) claim(z, "zone");
+  for (const a of raw.actors ?? []) claim(a, "actor");
+  for (const c of raw.components ?? []) claim(c, "component");
+  for (const f of raw.flows ?? []) claim(f, "flow");
+
+  if (!rename.size) return;
+  // an endpoint may name an actor or a component, so try both origins
+  const remap = (id?: string) =>
+    id === undefined
+      ? id
+      : rename.get(`component:${id}`) ?? rename.get(`actor:${id}`) ?? id;
+  for (const c of raw.components ?? []) {
+    c.zoneId = rename.get(`zone:${c.zoneId}`) ?? c.zoneId;
+    c.parentId = remap(c.parentId);
+  }
+  for (const z of raw.zones ?? []) z.parentId = rename.get(`zone:${z.parentId}`) ?? z.parentId;
+  for (const f of raw.flows ?? []) {
+    f.sourceId = remap(f.sourceId) ?? f.sourceId;
+    f.targetId = remap(f.targetId) ?? f.targetId;
+  }
+}
 
 function normalizeModel(raw: Partial<ArchitectureModel>, fileName?: string): ArchitectureModel {
   const now = new Date().toISOString();
+  dedupeIds(raw);
   return {
     id: raw.id ?? `arch-${Date.now()}`,
     title: raw.title ?? "Extracted Architecture",
