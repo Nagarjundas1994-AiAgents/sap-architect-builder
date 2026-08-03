@@ -410,6 +410,17 @@ button, input, textarea { font: inherit; color: inherit; }
 .artifact-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .artifact-note { font-size: 11.5px; color: var(--faint); }
 .artifact-body .code { margin: 0; white-space: pre; }
+.artifact-picker button { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.head-actions { display: flex; gap: 6px; flex: none; }
+/* a view whose structure check failed — still selectable, the code is there to read */
+.pick-warn {
+  flex: none; width: 15px; height: 15px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 10px; font-weight: 600;
+  background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn);
+}
+/* mermaid draws to its natural size; the sheet fits to width and zooms from there */
+.artifact-body .viewer { min-height: 320px; }
+.artifact-body .viewer-canvas svg { padding: 14px 10px; }
 
 /* Insights */
 .insights { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }

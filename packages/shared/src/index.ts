@@ -168,6 +168,19 @@ export interface ArchitectureModel {
   createdAt: string;
 }
 
+/** One renderable Mermaid view produced by the Mermaid agent. */
+export interface MermaidView {
+  id: "landscape" | "context" | "container" | "sequence" | "identity";
+  label: string;
+  /** Mermaid diagram type, e.g. flowchart / C4Context / sequenceDiagram. */
+  kind: string;
+  note: string;
+  code: string;
+  /** Structural check passed (balanced blocks, declared nodes). */
+  ok: boolean;
+  issues: string[];
+}
+
 export interface ReferenceArchitecture {
   id: string;
   title: string;
@@ -224,6 +237,8 @@ export interface PipelineResult {
   approved?: ArchitectureModel;
   drawioXml?: string;
   drawioPath?: string;
+  /** Renderable Mermaid views from the Mermaid agent. */
+  mermaid?: MermaidView[];
   error?: string;
   engine?: "langgraph" | "sequential";
   createdAt: string;

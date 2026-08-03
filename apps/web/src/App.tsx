@@ -8,7 +8,19 @@ import {
   type ProviderInfo,
 } from "./api";
 import { renderPreview } from "./preview";
-import type { ArchitectureModel, PipelineResult } from "./types";
+import type { ArchitectureModel, MermaidView, PipelineResult } from "./types";
+
+/** One place that turns generated text into a file on disk. */
+function saveFile(name: string, text: string, mime: string) {
+  const url = URL.createObjectURL(new Blob([text], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+const slug = (s: string) => s.replace(/[^\w.-]+/g, "-").toLowerCase();
 
 const SCENARIOS = [
   { label: "Agentic AI", hints: "agentic joule custom agents", note: "Orchestrated agents on a platform" },
@@ -21,6 +33,7 @@ const STEP_COPY: Record<string, string> = {
   retrieve: "Matching references",
   gaps: "Checking for gaps",
   refine: "Refining the model",
+  mermaid: "Drawing Mermaid views",
   human_review: "Waiting for you",
   generate: "Drawing the diagram",
   validate: "Validating output",
@@ -127,11 +140,7 @@ function DrawioEmbed({
 }
 
 const ARTIFACTS = [
-  { key: "contextC4", label: "C4 context", lang: "mermaid", note: "Paste into a Markdown file or Confluence" },
-  { key: "containerC4", label: "C4 container", lang: "mermaid", note: "Keeps composition and nesting" },
-  { key: "sequence", label: "Sequence", lang: "mermaid", note: "Runtime call order; dashed arrows are async" },
-  { key: "identityFlow", label: "Identity & trust", lang: "mermaid", note: "Trust relationships only" },
-  { key: "plantUml", label: "PlantUML", lang: "plantuml", note: "Component view" },
+  { key: "plantUml", label: "PlantUML", lang: "plantuml", note: "Component view, for teams standardised on PlantUML" },
   { key: "adr", label: "Decision record", lang: "markdown", note: "MADR-shaped ADR" },
 ] as const;
 
@@ -139,11 +148,11 @@ const ARTIFACTS = [
  * Companion artifacts for the design document.
  *
  * The diagram is what gets shown; these are what get committed next to the code and
- * pasted into the architecture review. All text, so they render wherever the team
- * already works without installing anything.
+ * pasted into the architecture review. The Mermaid views live in their own tab, where
+ * they are rendered rather than quoted — this tab is what is left over.
  */
 function Artifacts({ artifacts }: { artifacts: NonNullable<PipelineResult["artifacts"]> }) {
-  const [pick, setPick] = useState<(typeof ARTIFACTS)[number]["key"]>("contextC4");
+  const [pick, setPick] = useState<(typeof ARTIFACTS)[number]["key"]>("plantUml");
   const [copied, setCopied] = useState(false);
   const current = ARTIFACTS.find((a) => a.key === pick)!;
   const body = artifacts[pick] ?? "";
@@ -185,6 +194,133 @@ function Artifacts({ artifacts }: { artifacts: NonNullable<PipelineResult["artif
   );
 }
 
+/**
+ * Mermaid views, rendered.
+ *
+ * The agent produces text; drawing it here with the real Mermaid parser is also the
+ * only honest validation there is — what renders in this panel renders in GitHub, in
+ * Confluence and in every IDE preview the team already has, because it is the same
+ * parser. The diagram is available as soon as the model is extracted, so an architect
+ * can look at the drawing before approving rather than after.
+ *
+ * `securityLevel: strict` and `htmlLabels: false` matter: component labels arrive from
+ * a language model, and neither should be able to put markup into the page.
+ */
+function MermaidPanel({ views, title }: { views: MermaidView[]; title: string }) {
+  const [pick, setPick] = useState<MermaidView["id"]>(views[0]?.id ?? "landscape");
+  const [svg, setSvg] = useState("");
+  const [failed, setFailed] = useState<string | null>(null);
+  const [showCode, setShowCode] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const current = views.find((v) => v.id === pick) ?? views[0];
+  const code = current?.code ?? "";
+
+  useEffect(() => {
+    if (!code.trim() || code.trim().startsWith("%%")) {
+      setSvg("");
+      setFailed(code.trim() ? code.replace(/^%%\s*/, "") : "Nothing to draw for this view.");
+      return;
+    }
+    let live = true;
+    setFailed(null);
+    void (async () => {
+      try {
+        const mermaid = (await import("mermaid")).default;
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: "default",
+          securityLevel: "strict",
+          suppressErrorRendering: true,
+          flowchart: { htmlLabels: false, curve: "basis", nodeSpacing: 40, rankSpacing: 55 },
+          sequence: { useMaxWidth: false },
+        });
+        // ids must be unique or a re-render collides with the previous temp node
+        const { svg: out } = await mermaid.render(`mmd-${pick}-${Date.now()}`, code);
+        if (live) setSvg(out);
+      } catch (e) {
+        if (live) {
+          setSvg("");
+          setFailed(e instanceof Error ? e.message : String(e));
+        }
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [pick, code]);
+
+  if (!current) return null;
+
+  return (
+    <div className="artifacts">
+      <div className="artifact-picker">
+        {views.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            className={pick === v.id ? "on" : ""}
+            onClick={() => {
+              setPick(v.id);
+              setCopied(false);
+            }}
+          >
+            {v.label}
+            {!v.ok && <span className="pick-warn" title={v.issues.join("; ")}>!</span>}
+          </button>
+        ))}
+      </div>
+
+      <div className="artifact-body">
+        <div className="artifact-head">
+          <span className="artifact-note">{current.note}</span>
+          <div className="head-actions">
+            <button className="btn sm" onClick={() => setShowCode((c) => !c)}>
+              {showCode ? "Diagram" : "Code"}
+            </button>
+            <button
+              className="btn sm"
+              onClick={() => {
+                void navigator.clipboard?.writeText(code);
+                setCopied(true);
+              }}
+            >
+              {copied ? "Copied" : "Copy"}
+            </button>
+            <button
+              className="btn sm"
+              onClick={() => saveFile(`${slug(title)}-${current.id}.mmd`, code, "text/plain")}
+            >
+              .mmd
+            </button>
+            <button
+              className="btn sm"
+              disabled={!svg}
+              onClick={() => saveFile(`${slug(title)}-${current.id}.svg`, svg, "image/svg+xml")}
+            >
+              .svg
+            </button>
+          </div>
+        </div>
+
+        {showCode ? (
+          <pre className="code">{code}</pre>
+        ) : svg ? (
+          <DiagramViewer svg={svg} />
+        ) : (
+          <div className="hollow hollow-copy">
+            <h3>This view didn't render</h3>
+            <p>{failed}</p>
+            <button className="btn sm" onClick={() => setShowCode(true)}>
+              Show the Mermaid source
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const SEVERITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
 function statusTone(s: string) {
@@ -202,7 +338,7 @@ function statusTone(s: string) {
  * unreadable. Wheel zooms toward the cursor, drag pans, and the browser's own
  * fullscreen gives the drawing the whole screen without a lightbox to maintain.
  */
-function DiagramViewer({ svg, shapes }: { svg: string; shapes: number }) {
+function DiagramViewer({ svg, shapes }: { svg: string; shapes?: number }) {
   const frame = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
   const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
@@ -284,8 +420,13 @@ function DiagramViewer({ svg, shapes }: { svg: string; shapes: number }) {
       </div>
 
       <div className="viewer-dock">
-        <span className="viewer-shapes">{shapes} shapes</span>
-        <span className="viewer-sep" />
+        {/* a Mermaid sequence or C4 view has no comparable shape count — omit rather than lie */}
+        {shapes !== undefined && (
+          <>
+            <span className="viewer-shapes">{shapes} shapes</span>
+            <span className="viewer-sep" />
+          </>
+        )}
         <button type="button" onClick={() => zoomBy(1 / 1.25)} aria-label="Zoom out">
           −
         </button>
@@ -322,7 +463,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [editJson, setEditJson] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"diagram" | "edit" | "artifacts" | "model" | "xml">("diagram");
+  const [tab, setTab] = useState<
+    "diagram" | "mermaid" | "edit" | "artifacts" | "model" | "xml"
+  >("diagram");
   const [editorDown, setEditorDown] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem("theme") !== "light");
   const [elapsed, setElapsed] = useState(0);
@@ -428,13 +571,7 @@ export default function App() {
 
   function download() {
     if (!result?.drawioXml) return;
-    const blob = new Blob([result.drawioXml], { type: "application/xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${(model?.title ?? "architecture").replace(/[^\w.-]+/g, "-").toLowerCase()}.drawio`;
-    a.click();
-    URL.revokeObjectURL(url);
+    saveFile(`${slug(model?.title ?? "architecture")}.drawio`, result.drawioXml, "application/xml");
   }
 
   const steps = result?.steps ?? [];
@@ -671,30 +808,36 @@ export default function App() {
 
                 <div className="stage-tools">
                   <div className="segmented" role="tablist">
-                    {(["diagram", "edit", "artifacts", "model", "xml"] as const).map((t) => (
-                      <button
-                        key={t}
-                        role="tab"
-                        aria-selected={tab === t}
-                        className={tab === t ? "on" : ""}
-                        onClick={() => setTab(t)}
-                        disabled={
-                          t === "artifacts"
-                            ? !result?.artifacts
-                            : t !== "model" && !result?.drawioXml
-                        }
-                      >
-                        {t === "diagram"
-                          ? "Diagram"
-                          : t === "edit"
-                            ? "Edit"
-                            : t === "artifacts"
-                              ? "Artifacts"
-                              : t === "model"
-                                ? "Model"
-                                : "XML"}
-                      </button>
-                    ))}
+                    {(["diagram", "mermaid", "edit", "artifacts", "model", "xml"] as const).map(
+                      (t) => (
+                        <button
+                          key={t}
+                          role="tab"
+                          aria-selected={tab === t}
+                          className={tab === t ? "on" : ""}
+                          onClick={() => setTab(t)}
+                          disabled={
+                            t === "mermaid"
+                              ? !result?.mermaid?.length
+                              : t === "artifacts"
+                                ? !result?.artifacts
+                                : t !== "model" && !result?.drawioXml
+                          }
+                        >
+                          {t === "diagram"
+                            ? "Diagram"
+                            : t === "mermaid"
+                              ? "Mermaid"
+                              : t === "edit"
+                                ? "Edit"
+                                : t === "artifacts"
+                                  ? "Artifacts"
+                                  : t === "model"
+                                    ? "Model"
+                                    : "XML"}
+                        </button>
+                      )
+                    )}
                   </div>
                   {awaiting && (
                     <button className="btn btn-go sm" onClick={approve} disabled={busy !== null}>
@@ -730,6 +873,15 @@ export default function App() {
                   ) : (
                     <div className="hollow">
                       <p>Approve the model and the drawing appears here.</p>
+                    </div>
+                  ))}
+
+                {tab === "mermaid" &&
+                  (result?.mermaid?.length ? (
+                    <MermaidPanel views={result.mermaid} title={model.title} />
+                  ) : (
+                    <div className="hollow">
+                      <p>Mermaid views appear once a model has been extracted.</p>
                     </div>
                   ))}
 

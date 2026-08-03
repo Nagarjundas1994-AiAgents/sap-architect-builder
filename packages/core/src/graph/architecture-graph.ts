@@ -4,11 +4,13 @@ import type {
   ArchitectureModel,
   ExtractVisionRequest,
   GapFinding,
+  MermaidView,
   PipelineResult,
   PipelineStepStatus,
   ReferenceArchitecture,
 } from "@sap-architect/shared";
 import { analyzeGaps } from "../agents/gaps.js";
+import { buildMermaidViews } from "../agents/mermaid.js";
 import { refineArchitecture } from "../agents/refine.js";
 import { validateArchitectureModel, validateDiagram } from "../agents/validate.js";
 import { loadCorpusIntoStore } from "../corpus/loader.js";
@@ -40,6 +42,7 @@ const GraphState = Annotation.Root({
   refined: Annotation<ArchitectureModel | undefined>,
   approved: Annotation<ArchitectureModel | undefined>,
   drawioXml: Annotation<string | undefined>,
+  mermaid: Annotation<MermaidView[] | undefined>,
   error: Annotation<string | undefined>,
   status: Annotation<PipelineResult["status"]>,
   createdAt: Annotation<string>,
@@ -58,6 +61,7 @@ function baseSteps(): PipelineStepStatus[] {
     { id: "retrieve", name: "Reference architecture search", status: "pending" },
     { id: "gaps", name: "Gap analysis", status: "pending" },
     { id: "refine", name: "Architecture refinement", status: "pending" },
+    { id: "mermaid", name: "Mermaid diagram generation", status: "pending" },
     { id: "human_review", name: "Human review", status: "pending" },
     { id: "generate", name: "Draw.io XML generation", status: "pending" },
     { id: "validate", name: "Validation", status: "pending" },
@@ -97,6 +101,7 @@ function toResult(state: S): PipelineResult {
     refined: state.refined,
     approved: state.approved,
     drawioXml: state.drawioXml,
+    mermaid: state.mermaid,
     error: state.error,
     engine: "langgraph",
     createdAt: state.createdAt,
@@ -241,9 +246,39 @@ function buildGraph(getStore: () => Promise<VectorStore>, vision: VisionExtracto
       steps,
       approved,
       refined: approved,
+      // the architect may have edited the model in the review, so the views it was
+      // approved with are no longer the views it should ship with
+      mermaid: buildMermaidViews(approved),
       status: "running",
       updatedAt: now(),
     };
+  };
+
+  /**
+   * Mermaid runs *before* the review gate, so the architect approves a picture rather
+   * than a JSON blob — the whole point of pausing. It is re-run on the approved model
+   * in `humanReviewNode`, because the review is where the model gets edited.
+   *
+   * It also never fails the job: a text diagram the team can paste into a pull request
+   * is worth having even when the .drawio render is the thing that broke.
+   */
+  const mermaidNode = async (state: S): Promise<Partial<S>> => {
+    if (state.status === "failed") return {};
+    const model = state.approved ?? state.refined;
+    if (!model) return {};
+    let steps = mark(state.steps, "mermaid", "running");
+    try {
+      const mermaid = buildMermaidViews(model);
+      const bad = mermaid.filter((v) => !v.ok);
+      steps = mark(steps, "mermaid", "completed", {
+        detail: { views: mermaid.length, invalid: bad.map((v) => ({ id: v.id, issues: v.issues })) },
+      });
+      return { steps, mermaid, updatedAt: now() };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      steps = mark(steps, "mermaid", "skipped", { message });
+      return { steps, updatedAt: now() };
+    }
   };
 
   const generateNode = async (state: S): Promise<Partial<S>> => {
@@ -286,13 +321,15 @@ function buildGraph(getStore: () => Promise<VectorStore>, vision: VisionExtracto
     .addNode("node_gap_analysis", gapsNode)
     .addNode("node_refine", refineNode)
     .addNode("node_human_review", humanReviewNode)
+    .addNode("node_mermaid", mermaidNode)
     .addNode("node_generate", generateNode)
     .addNode("node_validate", validateNode)
     .addEdge(START, "node_extract")
     .addEdge("node_extract", "node_retrieve")
     .addEdge("node_retrieve", "node_gap_analysis")
     .addEdge("node_gap_analysis", "node_refine")
-    .addEdge("node_refine", "node_human_review")
+    .addEdge("node_refine", "node_mermaid")
+    .addEdge("node_mermaid", "node_human_review")
     .addEdge("node_human_review", "node_generate")
     .addEdge("node_generate", "node_validate")
     .addEdge("node_validate", END)
@@ -349,6 +386,7 @@ export async function runLangGraphPipeline(
     refined: undefined,
     approved: undefined,
     drawioXml: undefined,
+    mermaid: undefined,
     error: undefined,
     status: "running",
     createdAt,
@@ -400,7 +438,7 @@ async function generateFromApprovedModel(
 ): Promise<PipelineResult> {
   const createdAt = now();
   let steps = baseSteps().map((s) =>
-    s.id === "generate" || s.id === "validate"
+    s.id === "generate" || s.id === "validate" || s.id === "mermaid"
       ? s
       : {
           ...s,
@@ -425,6 +463,9 @@ async function generateFromApprovedModel(
   try {
     const check = validateArchitectureModel(model);
     if (!check.ok) throw new Error(`Invalid model: ${check.issues.join("; ")}`);
+
+    result.mermaid = buildMermaidViews(model);
+    steps = mark(steps, "mermaid", "completed", { detail: { views: result.mermaid.length } });
 
     result.drawioXml = generateDrawioXml(model);
     steps = mark(steps, "generate", "completed");

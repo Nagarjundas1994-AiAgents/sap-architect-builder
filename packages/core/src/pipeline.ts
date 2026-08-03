@@ -6,6 +6,7 @@ import type {
   PipelineStepStatus,
 } from "@sap-architect/shared";
 import { analyzeGaps } from "./agents/gaps.js";
+import { buildMermaidViews } from "./agents/mermaid.js";
 import { refineArchitecture } from "./agents/refine.js";
 import { validateArchitectureModel, validateDiagram } from "./agents/validate.js";
 import { loadCorpusIntoStore } from "./corpus/loader.js";
@@ -61,6 +62,7 @@ async function runSequentialPipeline(
       step("retrieve", "Reference architecture search"),
       step("gaps", "Gap analysis"),
       step("refine", "Architecture refinement"),
+      step("mermaid", "Mermaid diagram generation"),
       step("human_review", "Human review"),
       step("generate", "Draw.io XML generation"),
       step("validate", "Validation"),
@@ -147,10 +149,20 @@ async function runSequentialPipeline(
       );
     });
 
+    // same order as the graph engine: a picture exists before the review, not after
+    await run("mermaid", () => {
+      result.mermaid = buildMermaidViews(result.refined!);
+      result.steps.find((s) => s.id === "mermaid")!.detail = {
+        views: result.mermaid.length,
+        invalid: result.mermaid.filter((v) => !v.ok).map((v) => v.id),
+      };
+    });
+
     // sequential mode: auto-approve or use provided model
     await run("human_review", () => {
       result.approved = options.autoApproveModel ?? result.refined;
       result.refined = result.approved;
+      if (options.autoApproveModel) result.mermaid = buildMermaidViews(options.autoApproveModel);
     });
 
     await run("generate", () => {

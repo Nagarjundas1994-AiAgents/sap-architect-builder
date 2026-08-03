@@ -20,9 +20,12 @@ import {
 } from "@sap-architect/drawio";
 import {
   analyzeGaps,
+  buildMermaidViews,
   claimsToBeSap,
   resumeArchitecturePipeline,
+  toMermaidLandscape,
   validateArchitectureModel,
+  validateMermaid,
   verifySapProduct,
 } from "@sap-architect/core";
 
@@ -790,4 +793,80 @@ test("a pipeline that receives data but never passes it on is reported", () => {
     []
   );
   assert.equal(fixed.filter((g) => g.id.startsWith("gap-deadend")).length, 0);
+});
+
+// ── Mermaid agent ──────────────────────────────────────────────────────────
+
+test("the Mermaid landscape keeps the nesting and closes every block", () => {
+  const code = toMermaidLandscape(NESTED);
+
+  // zone nesting survives: a subaccount inside a platform inside the chart
+  assert.match(code, /^flowchart TB/, "landscape is a flowchart");
+  const opens = (code.match(/^\s*subgraph\b/gm) ?? []).length;
+  const ends = (code.match(/^\s*end\s*$/gm) ?? []).length;
+  assert.equal(opens, ends, `unbalanced blocks: ${opens} subgraph vs ${ends} end`);
+  assert.ok(opens >= 4, `expected a subgraph per zone, got ${opens}`);
+
+  // every component and actor reaches the chart, with kind-carrying shapes
+  assert.match(code, /c2\[\("SAP HANA Cloud"\)\]/, "a database is drawn as a cylinder");
+  assert.match(code, /c3\{\{"Procurement Agent"\}\}/, "an agent is drawn as a hexagon");
+  assert.match(code, /a1\(\["User"\]\)/, "an actor is drawn as a stadium");
+
+  // connector semantics: async is dotted, sync is solid
+  assert.match(code, /c1 -\. "calls · A2A" \.-> c3/, "async flow keeps the dotted arrow");
+  assert.match(code, /c3 -- "reads" --> c2/, "sync flow keeps the solid arrow");
+
+  assert.deepEqual(validateMermaid(code).issues, [], "generated landscape must validate");
+});
+
+test("Mermaid ids that would break the parser are rewritten", () => {
+  const model = {
+    ...MODEL,
+    // "end" closes a block; a leading digit is not a valid id
+    components: [
+      { id: "end", label: 'Gateway "edge"', kind: "integration", zoneId: "z1" },
+      { id: "2fa", label: "Step-up auth", kind: "identity", zoneId: "z1" },
+    ],
+    flows: [{ id: "f1", sourceId: "end", targetId: "2fa", label: "checks" }],
+  };
+  const code = toMermaidLandscape(model);
+
+  assert.ok(!/^\s*end\[/m.test(code), "a node must never be named 'end'");
+  assert.match(code, /n_end/, "reserved id is prefixed");
+  assert.match(code, /n_2fa/, "digit-leading id is prefixed");
+  assert.ok(!/Gateway "edge"/.test(code), "quotes inside a label must be stripped");
+  assert.deepEqual(validateMermaid(code).issues, []);
+});
+
+test("the structural check catches what makes Mermaid refuse to render", () => {
+  assert.equal(validateMermaid("").ok, false, "empty is not a diagram");
+  assert.equal(
+    validateMermaid('flowchart TB\nsubgraph z["Z"]\n a["A"]').ok,
+    false,
+    "an unclosed subgraph must be reported"
+  );
+  assert.match(
+    validateMermaid('flowchart TB\na["A"]\na --> ghost').issues.join(" "),
+    /undeclared node: ghost/
+  );
+  // a view with nothing to say says so in a comment, and that is valid
+  assert.equal(validateMermaid("%% No identity components in this model.").ok, true);
+});
+
+test("every Mermaid view is produced and one broken view cannot sink the rest", () => {
+  const views = buildMermaidViews(NESTED);
+  assert.deepEqual(
+    views.map((v) => v.id),
+    ["landscape", "context", "container", "sequence", "identity"]
+  );
+  for (const v of views) {
+    assert.ok(v.code.length > 0, `${v.id} produced no code`);
+    assert.ok(v.label && v.note, `${v.id} is missing its UI copy`);
+  }
+  assert.equal(views.find((v) => v.id === "landscape").ok, true);
+
+  // a model with no flows at all still yields views rather than throwing
+  const bare = buildMermaidViews({ ...MODEL, flows: [], actors: [] });
+  assert.equal(bare.length, 5);
+  assert.equal(bare.find((v) => v.id === "landscape").ok, true);
 });

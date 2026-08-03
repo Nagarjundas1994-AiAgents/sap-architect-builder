@@ -28,6 +28,11 @@ export {
 } from "./agents/retrieve.js";
 export { analyzeGaps } from "./agents/gaps.js";
 export {
+  buildMermaidViews,
+  toMermaidLandscape,
+  validateMermaid,
+} from "./agents/mermaid.js";
+export {
   claimsToBeSap,
   verifySapProduct,
   type ProductVerdict,

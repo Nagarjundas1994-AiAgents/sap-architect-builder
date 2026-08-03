@@ -81,6 +81,17 @@ export interface ScoredRef {
   score: number;
 }
 
+/** One renderable Mermaid view from the Mermaid agent. */
+export interface MermaidView {
+  id: "landscape" | "context" | "container" | "sequence" | "identity";
+  label: string;
+  kind: string;
+  note: string;
+  code: string;
+  ok: boolean;
+  issues: string[];
+}
+
 export interface PipelineResult {
   jobId: string;
   status: "queued" | "running" | "awaiting_review" | "completed" | "failed";
@@ -99,6 +110,8 @@ export interface PipelineResult {
     plantUml: string;
     adr: string;
   };
+  /** Renderable Mermaid views, produced before the Draw.io render. */
+  mermaid?: MermaidView[];
   drawioXml?: string;
   error?: string;
   engine?: string;
