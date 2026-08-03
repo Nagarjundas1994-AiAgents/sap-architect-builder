@@ -870,3 +870,189 @@ test("every Mermaid view is produced and one broken view cannot sink the rest", 
   assert.equal(bare.length, 5);
   assert.equal(bare.find((v) => v.id === "landscape").ok, true);
 });
+
+// ── SAP architecture review ────────────────────────────────────────────────
+
+const CLEAN_CORE_VIOLATION = {
+  ...MODEL,
+  id: "cc",
+  zones: [
+    { id: "btp", label: "SAP BTP", kind: "sap-btp" },
+    { id: "onprem", label: "On-premise", kind: "on-premise" },
+    { id: "hs", label: "AWS", kind: "hyperscaler" },
+  ],
+  actors: [{ id: "u", label: "Employee" }],
+  components: [
+    { id: "ext", label: "Z-Modification in ECC", kind: "custom-app", zoneId: "onprem" },
+    { id: "ecc", label: "SAP ECC", kind: "sap-product", zoneId: "onprem" },
+    { id: "app", label: "Custom Node.js App", kind: "custom-app", zoneId: "btp" },
+    { id: "s3", label: "Amazon S3", kind: "external", zoneId: "hs" },
+    { id: "ias", label: "SAP Cloud Identity Services", kind: "identity", zoneId: "btp" },
+  ],
+  flows: [
+    { id: "f1", sourceId: "u", targetId: "app", mode: "sync" },
+    { id: "f2", sourceId: "app", targetId: "ecc", label: "direct RFC", protocol: "RFC", mode: "sync" },
+    { id: "f5", sourceId: "app", targetId: "s3", label: "export", protocol: "HTTP", mode: "batch" },
+    { id: "f6", sourceId: "u", targetId: "ias", mode: "trust" },
+  ],
+};
+
+test("the review raises the findings an SAP architect would raise", () => {
+  const ids = analyzeGaps(CLEAN_CORE_VIOLATION, []).map((g) => g.id);
+  const need = {
+    "gap-cleancore-ext": "core modification blocks upgrades",
+    "gap-cloud-connector": "BTP reaching on-premise without the supported tunnel",
+    "gap-destination": "endpoints hard-coded instead of configured",
+    "gap-principal-f2": "RFC into ECC carrying no user identity",
+    "gap-transport-f2": "plain RFC off-platform",
+    "gap-transport-f5": "plain HTTP off-platform",
+    "gap-apim": "external entry point with no API Management",
+    "gap-lifecycle": "classic ERP stack with no successor",
+    "gap-integration": "business system integrated point-to-point",
+  };
+  for (const [id, why] of Object.entries(need)) {
+    assert.ok(ids.includes(id), `missing finding: ${id} — ${why}`);
+  }
+});
+
+test("architecture findings stay quiet on a design that is actually correct", () => {
+  const good = {
+    ...MODEL,
+    id: "good",
+    zones: [
+      { id: "btp", label: "SAP BTP", kind: "sap-btp" },
+      { id: "onprem", label: "On-premise", kind: "on-premise" },
+    ],
+    actors: [{ id: "u", label: "Employee" }],
+    components: [
+      { id: "apim", label: "SAP Integration Suite - API Management", kind: "integration", zoneId: "btp" },
+      { id: "cc", label: "SAP Cloud Connector", kind: "integration", zoneId: "btp" },
+      { id: "dest", label: "SAP Destination Service", kind: "sap-service", zoneId: "btp" },
+      { id: "ias", label: "SAP Cloud Identity Services", kind: "identity", zoneId: "btp" },
+      { id: "s4", label: "SAP S/4HANA", kind: "sap-product", zoneId: "onprem" },
+    ],
+    flows: [
+      { id: "g1", sourceId: "u", targetId: "apim", protocol: "HTTPS", mode: "sync" },
+      { id: "g2", sourceId: "apim", targetId: "s4", label: "OData with principal propagation", protocol: "HTTPS", mode: "sync" },
+      { id: "g3", sourceId: "apim", targetId: "dest", mode: "sync" },
+      { id: "g4", sourceId: "u", targetId: "ias", mode: "trust" },
+      { id: "g5", sourceId: "s4", targetId: "cc", mode: "sync" },
+    ],
+  };
+  const raised = analyzeGaps(good, []).filter((g) =>
+    /cleancore|cloud-connector|destination|principal|transport|apim|lifecycle|integration$/.test(g.id)
+  );
+  assert.deepEqual(raised.map((g) => g.id), [], "a correct design must not be nagged");
+});
+
+test("an official SAP glyph is never put on something that is not that product", () => {
+  // the ERP is not the database — this drew SAP S/4HANA Cloud with the HANA Cloud icon
+  assert.equal(resolveSapIcon("SAP S/4HANA Cloud"), undefined);
+  assert.equal(resolveSapIcon("SAP S/4HANA Cloud, private edition"), undefined);
+  // a customer's own component must never be branded as an SAP service
+  assert.equal(resolveSapIcon("Custom HANA Cloud Sidecar"), undefined);
+  assert.equal(resolveSapIcon("Legacy AI Core Wrapper"), undefined);
+  // the real products still resolve
+  assert.equal(resolveSapIcon("SAP HANA Cloud"), "SAP_HANA_Cloud");
+  assert.equal(resolveSapIcon("SAP BTP, Kyma Runtime"), "SAP_BTP,_Kyma_runtime");
+  // and a capability beats its umbrella, which is what the module always promised
+  assert.equal(resolveSapIcon("SAP Integration Suite - Event Mesh"), "SAP_Integration_Suite_-_Event_Mesh");
+  assert.equal(
+    resolveSapIcon("SAP Cloud Identity Services - Identity Authentication"),
+    "Identity_Authentication"
+  );
+});
+
+test("real SAP products are not reported as invented", () => {
+  const real = [
+    "SAP Gateway", "SAP NetWeaver", "SAP Process Integration", "SAP Data Services",
+    "SAP Information Steward", "SAP Landscape Transformation Replication Server",
+    "SAP Customer Data Cloud", "SAP Business Suite", "SAP Digital Manufacturing",
+    "SAP Asset Performance Management", "SAP Sustainability Control Tower",
+    "SAP Graph", "SAP Knowledge Graph", "SAP Databricks", "SAP Fiori Elements",
+    "SAP Enterprise Architecture Designer", "SAP Ariba Buying", "SAP Business Rules",
+  ];
+  const flagged = real.filter((n) => verifySapProduct(n).status === "unverified");
+  assert.deepEqual(flagged, [], "these ship from SAP; flagging them trains users to ignore the panel");
+
+  // RAP is ABAP, CAP is Node/Java — suggesting one for the other is worse than silence
+  assert.match(verifySapProduct("SAP RAP").canonical, /ABAP RESTful/);
+
+  // and inventions are still caught
+  for (const fake of ["SAP Workflow Cloud", "SAP Agent Mesh", "SAP Cloud Data Fabric"]) {
+    assert.equal(verifySapProduct(fake).status, "unverified", `${fake} must not pass`);
+  }
+});
+
+test("approving an edited model re-checks it", async () => {
+  const approved = {
+    ...MODEL,
+    id: "edited",
+    components: [
+      ...MODEL.components,
+      // introduced by the architect at the review gate, after gap analysis ran
+      { id: "bad", label: "SAP Data Orchestration Hub", kind: "sap-service", zoneId: "z1" },
+    ],
+    flows: [...MODEL.flows, { id: "f2", sourceId: "c1", targetId: "bad" }],
+  };
+  const r = await resumeArchitecturePipeline("job-never-checkpointed", approved, {
+    skipCorpusLoad: true,
+  });
+  assert.equal(r.status, "completed");
+  assert.ok(r.gaps?.length, "gaps must be recomputed on what was approved, not what was proposed");
+  assert.ok(
+    r.gaps.some((g) => g.severity === "high" && /Data Orchestration Hub/.test(g.message)),
+    `invented name introduced at the gate went unreported: ${JSON.stringify(r.gaps)}`
+  );
+});
+
+test("runaway model output is bounded before it is drawn or stored", () => {
+  const at = (patch) => validateArchitectureModel({ ...MODEL, ...patch }).issues.join(" | ");
+  assert.match(
+    at({ components: Array.from({ length: 5000 }, (_, i) => ({ id: "c" + i, label: "N", kind: "generic", zoneId: "z1" })) }),
+    /Too many components/
+  );
+  assert.match(
+    at({ components: [{ id: "c1", label: "X".repeat(50_000), kind: "generic", zoneId: "z1" }] }),
+    /exceed 200 characters/
+  );
+  // a real architecture is unaffected
+  assert.equal(validateArchitectureModel(NESTED).ok, true);
+});
+
+test("bare brand names resolve instead of being reported as invented", () => {
+  // claimsToBeSap holds these to the catalogue, so each needs a canonical home
+  for (const [written, expected] of [
+    ["Joule", "SAP Joule"], ["Datasphere", "SAP Datasphere"], ["NetWeaver", "SAP NetWeaver"],
+    ["SuccessFactors", "SAP SuccessFactors"], ["Ariba", "SAP Ariba"], ["Signavio", "SAP Signavio"],
+    ["Fiori Launchpad", "SAP Fiori Launchpad"], ["XSUAA", "SAP Authorization and Trust Management Service"],
+  ]) {
+    const v = verifySapProduct(written);
+    assert.notEqual(v.status, "unverified", `"${written}" reported as invented`);
+    assert.equal(v.canonical, expected);
+  }
+});
+
+test("services that answer and stop are not reported as broken pipelines", () => {
+  const model = {
+    ...MODEL,
+    id: "terminal",
+    zones: [{ id: "z1", label: "SAP BTP", kind: "sap-btp" }],
+    components: [
+      { id: "app", label: "Extension App", kind: "custom-app", zoneId: "z1" },
+      { id: "cc", label: "SAP Cloud Connector", kind: "integration", zoneId: "z1" },
+      { id: "dest", label: "SAP Destination Service", kind: "sap-service", zoneId: "z1" },
+      { id: "aic", label: "SAP AI Core", kind: "sap-service", zoneId: "z1" },
+      { id: "ias", label: "SAP Cloud Identity Services", kind: "identity", zoneId: "z1" },
+    ],
+    flows: [
+      { id: "t1", sourceId: "a1", targetId: "app", mode: "sync" },
+      { id: "t2", sourceId: "app", targetId: "cc", mode: "sync" },
+      { id: "t3", sourceId: "app", targetId: "dest", mode: "sync" },
+      { id: "t4", sourceId: "app", targetId: "aic", label: "inference", mode: "sync" },
+      { id: "t5", sourceId: "a1", targetId: "ias", mode: "trust" },
+    ],
+  };
+  const deadends = analyzeGaps(model, []).filter((g) => g.id.startsWith("gap-deadend"));
+  assert.deepEqual(deadends.map((g) => g.id), [], "connectivity and inference legitimately terminate");
+});

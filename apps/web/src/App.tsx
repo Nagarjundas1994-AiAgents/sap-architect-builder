@@ -468,6 +468,7 @@ export default function App() {
   >("diagram");
   const [editorDown, setEditorDown] = useState(false);
   const [dark, setDark] = useState(() => localStorage.getItem("theme") !== "light");
+  const [railOpen, setRailOpen] = useState(() => localStorage.getItem("rail") !== "off");
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -481,6 +482,10 @@ export default function App() {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("theme", dark ? "dark" : "light");
   }, [dark]);
+
+  useEffect(() => {
+    localStorage.setItem("rail", railOpen ? "on" : "off");
+  }, [railOpen]);
 
   // The pipeline is one request, so there is no honest per-step progress to show.
   // A running clock at least tells you it is alive and how long it has taken.
@@ -579,10 +584,21 @@ export default function App() {
   const progress = steps.length ? Math.round((doneCount / steps.length) * 100) : 0;
 
   return (
-    <div className="app">
+    <div className="app" data-rail={railOpen ? "on" : "off"}>
       {/* ── Bar ─────────────────────────────────────────────────── */}
       <header className="bar">
         <div className="bar-brand">
+          <button
+            type="button"
+            className="icon-btn rail-toggle"
+            onClick={() => setRailOpen((o) => !o)}
+            aria-expanded={railOpen}
+            aria-controls="rail"
+            title={railOpen ? "Hide the input panel" : "Show the input panel"}
+            aria-label={railOpen ? "Hide the input panel" : "Show the input panel"}
+          >
+            ☰
+          </button>
           <span className="mark" aria-hidden="true" />
           <span className="mark-name">Architecture Studio</span>
         </div>
@@ -613,9 +629,26 @@ export default function App() {
         </div>
       </header>
 
+      {/*
+        The pipeline runs for the better part of a minute and changes state silently.
+        One polite live region narrates it, so the run is followable without sight of
+        the step list. Errors get their own assertive region below.
+      */}
+      <p className="sr-only" role="status" aria-live="polite">
+        {busy === "run"
+          ? "Analysing the architecture."
+          : busy === "approve"
+            ? "Drawing the approved diagram."
+            : awaiting
+              ? `Model ready for review: ${model?.components.length ?? 0} components, ${result?.gaps?.length ?? 0} findings. Approve to draw.`
+              : finished
+                ? `Diagram generated. ${result?.gaps?.filter((g) => g.severity === "high").length ?? 0} high-severity findings.`
+                : ""}
+      </p>
+
       <div className="body">
         {/* ── Rail ──────────────────────────────────────────────── */}
-        <aside className="rail">
+        <aside className="rail" id="rail" inert={!railOpen || undefined}>
           <section className="block">
             <h2 className="block-title">Source</h2>
 
@@ -623,6 +656,7 @@ export default function App() {
               className={`drop ${dragOver ? "over" : ""} ${file ? "has" : ""}`}
               role="button"
               tabIndex={0}
+              aria-label={file ? `Sketch: ${file.name}. Choose a different image.` : "Choose a sketch image to analyse"}
               onClick={() => document.getElementById("file")?.click()}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -752,7 +786,7 @@ export default function App() {
         {/* ── Stage ─────────────────────────────────────────────── */}
         <main className="stage">
           {error && (
-            <div className="alert" role="alert">
+            <div className="alert" role="alert" aria-live="assertive">
               {error}
             </div>
           )}
@@ -791,6 +825,8 @@ export default function App() {
 
           {model && (
             <>
+              {/* fills the visible stage exactly, so references and gaps start below the fold */}
+              <div className="stage-main">
               <div className="stage-head">
                 <div className="stage-title">
                   <h1>{model.title}</h1>
@@ -928,12 +964,34 @@ export default function App() {
                   </div>
                 )}
 
-                {tab === "xml" && <pre className="code">{result?.drawioXml?.slice(0, 6000)}</pre>}
+                {tab === "xml" && (
+                  <div className="editor">
+                    {(result?.drawioXml?.length ?? 0) > 6000 && (
+                      <p className="artifact-note">
+                        Showing the first 6,000 of{" "}
+                        {result!.drawioXml!.length.toLocaleString()} characters — Download
+                        and Copy XML give you the whole document.
+                      </p>
+                    )}
+                    <pre className="code">{result?.drawioXml?.slice(0, 6000)}</pre>
+                  </div>
+                )}
+              </div>
               </div>
 
-              {((result?.references?.length ?? 0) > 0 || (result?.gaps?.length ?? 0) > 0) && (
+              {(result?.steps?.some((s) => s.id === "retrieve") || (result?.gaps?.length ?? 0) > 0) && (
                 <div className="insights">
-                  {result?.references && result.references.length > 0 && (
+                  {result?.references && result.references.length === 0 ? (
+                    // retrieval now has a relevance floor, so an unmatched design says
+                    // so instead of printing the least-bad hit as if it meant something
+                    <div className="insight">
+                      <h3>Closest references<span className="insight-count">none</span></h3>
+                      <p className="artifact-note">
+                        Nothing in the reference corpus is close enough to this design to
+                        ground it. The diagram is drawn from your description alone.
+                      </p>
+                    </div>
+                  ) : result?.references && result.references.length > 0 ? (
                     <div className="insight">
                       <h3>
                         Closest references
@@ -949,7 +1007,7 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                  )}
+                  ) : null}
                   {result?.gaps && result.gaps.length > 0 && (
                     <div className="insight">
                       <h3>

@@ -246,6 +246,25 @@ cds.on("served", () => {
     }
   });
 
+  /**
+   * JSON errors for /api.
+   *
+   * Express's default handler renders an HTML page containing the stack trace, so an
+   * oversized upload replied with absolute server paths. Mounted last so it only sees
+   * what the routes above did not handle.
+   */
+  app.use("/api", (err, _req, res, next) => {
+    if (res.headersSent) return next(err);
+    const status = errStatus(err, err?.type === "entity.too.large" ? 413 : 500);
+    console.error("[cap/api]", err?.message || err);
+    res.status(status).json({
+      error:
+        status === 413
+          ? "Upload too large — the limit is 16 MB. Try a smaller image."
+          : err?.message || "Request failed",
+    });
+  });
+
   console.log("[cap] REST facade ready at /api/* (UI backend)");
   console.log("[cap] OData V4 at /odata/v4/architect");
 });

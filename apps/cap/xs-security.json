@@ -9,6 +9,10 @@
     {
       "name": "$XSAPPNAME.Viewer",
       "description": "Read jobs and reference architectures"
+    },
+    {
+      "name": "$XSAPPNAME.Auditor",
+      "description": "Read every job across all users — grant deliberately"
     }
   ],
   "attributes": [],
@@ -22,6 +26,11 @@
       "name": "Viewer",
       "description": "Read-only consumer",
       "scope-references": ["$XSAPPNAME.Viewer"]
+    },
+    {
+      "name": "Auditor",
+      "description": "Cross-user read for governance and audit",
+      "scope-references": ["$XSAPPNAME.Auditor", "$XSAPPNAME.Viewer"]
     }
   ],
   "role-collections": [
@@ -34,6 +43,11 @@
       "name": "ArchitectBuilder_Viewer",
       "description": "Architect Builder – Viewers",
       "role-template-references": ["$XSAPPNAME.Viewer"]
+    },
+    {
+      "name": "ArchitectBuilder_Auditor",
+      "description": "Architect Builder – Auditors (sees all jobs)",
+      "role-template-references": ["$XSAPPNAME.Auditor"]
     }
   ],
   "oauth2-configuration": {

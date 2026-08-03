@@ -223,11 +223,47 @@ export const SAP_ICON_BY_SERVICE: Record<string, string> = {
 const ICON_STYLE_BASE =
   "shape=mxgraph.sap.icon;labelPosition=center;verticalLabelPosition=bottom;align=center;verticalAlign=top;strokeWidth=1;strokeColor=#D5DADD;fillColor=#EDEFF0;gradientColor=#FCFCFC;gradientDirection=west;aspect=fixed;fontFamily=Helvetica;fontSize=12;fontStyle=1;fontColor=default;";
 
-/** Shortest token allowed to fuzzy-match an icon key. */
-const MIN_FUZZY_LEN = 5;
+/** Lower-case, drop punctuation SAP writes inconsistently ("BTP, Kyma runtime"). */
+function normKey(s: string): string {
+  return s
+    .toLowerCase()
+    .replace(/\(.*?\)/g, " ")
+    .replace(/[®™]/g, "")
+    .replace(/[_.]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-/** Longest key first, so specific capabilities beat the umbrella service. */
-const SERVICE_KEYS = Object.keys(SAP_ICON_BY_SERVICE).sort((a, b) => b.length - a.length);
+/**
+ * Editions and scopes that qualify a product without naming a different one.
+ * "SAP HANA Cloud, data lake" is still HANA Cloud; "SAP S/4HANA Cloud" is not HANA Cloud.
+ */
+const EDITION =
+  /^(cloud|on premise|public edition|private edition|standard edition|advanced edition|enterprise edition|community edition|embedded edition|service|runtime|environment|edition)$/;
+
+/**
+ * Look one label up. Exact only — no substring scanning.
+ *
+ * The previous rule was `k.includes(name)`, which resolved "SAP S/4HANA Cloud" to the
+ * HANA Cloud database glyph (the ERP wearing a database icon), and handed the official
+ * SAP HANA Cloud icon to a customer component called "Custom HANA Cloud Sidecar".
+ * A wrong official glyph is worse than no glyph, so containment is gone: a name either
+ * *is* the service or it is drawn as a plain card.
+ */
+function exactIcon(raw: string): string | undefined {
+  const k = normKey(raw);
+  if (!k) return undefined;
+  const direct = SAP_ICON_BY_SERVICE[k] ?? SAP_ICON_BY_SERVICE[k.replace(/^sap /, "")];
+  if (direct) return direct;
+
+  // "SAP HANA Cloud, data lake" → strip a trailing edition/scope word and retry once
+  const comma = k.lastIndexOf(",");
+  if (comma > 0 && EDITION.test(k.slice(comma + 1).trim())) {
+    const head = k.slice(0, comma).trim();
+    return SAP_ICON_BY_SERVICE[head] ?? SAP_ICON_BY_SERVICE[head.replace(/^sap /, "")];
+  }
+  return undefined;
+}
 
 /**
  * Resolve a component to an official icon, or undefined when the catalog has none
@@ -241,17 +277,21 @@ export function resolveSapIcon(
 ): string | undefined {
   if (explicit) return SAP_ICON_CATALOG.has(explicit) ? explicit : undefined;
 
-  const keys = [officialName, label].filter(Boolean).map((s) => s!.toLowerCase().trim());
-  for (const k of keys) {
-    const exact = SAP_ICON_BY_SERVICE[k];
-    if (exact) return exact;
-    // ponytail: substring match only on tokens long enough to be unambiguous — an
-    // unguarded includes() maps "SAP" to Cloud Identity and "AI" to AI Core, which
-    // breaks the "never show a wrong official icon" contract above.
-    for (const name of SERVICE_KEYS) {
-      if (name.length >= MIN_FUZZY_LEN && k.includes(name)) return SAP_ICON_BY_SERVICE[name];
-      if (k.length >= MIN_FUZZY_LEN && name.includes(k)) return SAP_ICON_BY_SERVICE[name];
+  for (const raw of [officialName, label]) {
+    if (!raw) continue;
+
+    // SAP names a capability after its suite — "SAP Integration Suite - Event Mesh".
+    // The capability is the specific thing, so it is tried before the umbrella;
+    // resolving that example to the plain Integration Suite glyph lost the
+    // distinction the diagram was drawn to make.
+    const segments = raw.split(/\s*[-–—/:]\s*|\s*,\s*(?=[A-Z])/).filter((s) => s.trim());
+    for (const seg of segments.length > 1 ? [...segments].reverse() : []) {
+      const hit = exactIcon(seg);
+      if (hit) return hit;
     }
+
+    const whole = exactIcon(raw);
+    if (whole) return whole;
   }
   return undefined;
 }

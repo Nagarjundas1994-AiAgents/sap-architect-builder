@@ -7,6 +7,13 @@ using { sap.architect.builder as db } from '../db/schema';
 @path: 'architect'
 service ArchitectService {
 
+  /**
+   * A job holds a customer's landscape — system names, trust boundaries, the drawing
+   * itself. Exposed with only `authenticated-user` it was readable in bulk by anyone
+   * with the lowest role: a single GET returned every architecture in the system.
+   * Rows are owned by whoever ran the pipeline; an Auditor sees everything, and that
+   * is a role you grant deliberately.
+   */
   @readonly
   entity Jobs as projection on db.Jobs;
 
@@ -99,4 +106,12 @@ annotate ArchitectService.seedCorpus with @(requires: 'Architect');
 annotate ArchitectService.Feedback with @(restrict: [
   { grant: ['READ', 'WRITE'], to: 'Architect' },
   { grant: 'READ', to: 'Viewer' }
+]);
+
+// Row-level ownership. Without the `where`, any authenticated user could list every
+// job in the tenant — every model, every diagram, every set of architect notes.
+annotate ArchitectService.Jobs with @(restrict: [
+  { grant: 'READ', to: 'Auditor' },
+  { grant: 'READ', to: 'Architect', where: 'createdBy = $user' },
+  { grant: 'READ', to: 'Viewer',    where: 'createdBy = $user' }
 ]);

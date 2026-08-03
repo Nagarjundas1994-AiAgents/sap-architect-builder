@@ -162,7 +162,15 @@ async function runSequentialPipeline(
     await run("human_review", () => {
       result.approved = options.autoApproveModel ?? result.refined;
       result.refined = result.approved;
-      if (options.autoApproveModel) result.mermaid = buildMermaidViews(options.autoApproveModel);
+      // an approved model that differs from the refined one must be re-checked and
+      // re-drawn — the review is where names get fixed, or newly invented
+      if (options.autoApproveModel) {
+        result.mermaid = buildMermaidViews(options.autoApproveModel);
+        result.gaps = analyzeGaps(
+          options.autoApproveModel,
+          (result.references ?? []).map((r) => r.ref)
+        );
+      }
     });
 
     await run("generate", () => {

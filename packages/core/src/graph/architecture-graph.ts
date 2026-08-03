@@ -249,6 +249,11 @@ function buildGraph(getStore: () => Promise<VectorStore>, vision: VisionExtracto
       // the architect may have edited the model in the review, so the views it was
       // approved with are no longer the views it should ship with
       mermaid: buildMermaidViews(approved),
+      // ...and neither are the findings. The review gate is where a name gets fixed —
+      // or newly invented — so the gaps must describe what was approved, not what was
+      // proposed. Without this the panel reports the pre-edit model and the diagram
+      // ships with an unflagged defect.
+      gaps: analyzeGaps(approved, (state.references ?? []).map((r) => r.ref)),
       status: "running",
       updatedAt: now(),
     };
@@ -438,7 +443,7 @@ async function generateFromApprovedModel(
 ): Promise<PipelineResult> {
   const createdAt = now();
   let steps = baseSteps().map((s) =>
-    s.id === "generate" || s.id === "validate" || s.id === "mermaid"
+    s.id === "generate" || s.id === "validate" || s.id === "mermaid" || s.id === "gaps"
       ? s
       : {
           ...s,
@@ -463,6 +468,13 @@ async function generateFromApprovedModel(
   try {
     const check = validateArchitectureModel(model);
     if (!check.ok) throw new Error(`Invalid model: ${check.issues.join("; ")}`);
+
+    // same contract as the graph path: what ships is what was checked
+    result.gaps = analyzeGaps(model, []);
+    steps = mark(steps, "gaps", "completed", {
+      message: "Re-checked on the approved model",
+      detail: { count: result.gaps.length, high: result.gaps.filter((g) => g.severity === "high").length },
+    });
 
     result.mermaid = buildMermaidViews(model);
     steps = mark(steps, "mermaid", "completed", { detail: { views: result.mermaid.length } });

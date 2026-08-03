@@ -27,8 +27,7 @@ module.exports = class ArchitectService extends cds.ApplicationService {
     this.on("getJob", async (req) => {
       const jobId = req.data?.jobId;
       if (!jobId) return req.error(400, "jobId is required");
-      const db = await this._db();
-      const row = await db.run(SELECT.one.from(this.entities.Jobs).where({ externalId: jobId }));
+      const row = await this._ownedJob(req, jobId);
       if (!row) return req.error(404, "Job not found");
       return this._rowToJobResult(row);
     });
@@ -97,6 +96,17 @@ module.exports = class ArchitectService extends cds.ApplicationService {
         return req.error(400, `Invalid model: ${check.issues.join("; ")}`);
       }
 
+      // Approving resumes and overwrites a job — it must be the caller's own. A job
+      // that was never persisted (in-flight in this process) has no row yet, so an
+      // unknown id is allowed through; a known id belonging to someone else is not.
+      const db = await this._db();
+      const existing = await db.run(
+        SELECT.one.from(this.entities.Jobs).where({ externalId: jobId })
+      );
+      if (existing && !(await this._ownedJob(req, jobId))) {
+        return req.error(404, "Job not found");
+      }
+
       const cfg = this._providerConfig();
       const result = await this.core.resumeArchitecturePipeline(jobId, model, {
         provider: cfg.provider,
@@ -138,10 +148,34 @@ module.exports = class ArchitectService extends cds.ApplicationService {
     return cds.db || cds.connect.to("db");
   }
 
+  /**
+   * Fetch a job only if the caller owns it (or audits everything).
+   *
+   * The `@restrict` on the entity guards OData reads; custom actions bypass it, so
+   * the same rule is applied here. Without it, a job id — which appears in a URL and
+   * in the UI — was enough to read another architect's landscape, or to resume and
+   * overwrite their approval.
+   */
+  async _ownedJob(req, externalId) {
+    const db = await this._db();
+    const row = await db.run(SELECT.one.from(this.entities.Jobs).where({ externalId }));
+    if (!row) return null;
+    const user = req.user;
+    if (user?.is?.("Auditor")) return row;
+    // rows written before ownership was recorded have no createdBy; treat as private
+    return row.createdBy && row.createdBy === user?.id ? row : null;
+  }
+
   /** Credentials for whichever provider the caller asked for. */
   _providerConfig(requested) {
     const id = (requested || process.env.LLM_PROVIDER || "mock").toLowerCase();
     const byId = {
+      // SAP AI Core carries a whole service-key JSON, not a bare key; the provider
+      // adapter parses it and does the OAuth exchange itself.
+      aicore: {
+        apiKey: process.env.AICORE_SERVICE_KEY,
+        baseUrl: process.env.AICORE_BASE_URL,
+      },
       openai: {
         apiKey: process.env.OPENAI_API_KEY,
         baseUrl: process.env.OPENAI_BASE_URL,

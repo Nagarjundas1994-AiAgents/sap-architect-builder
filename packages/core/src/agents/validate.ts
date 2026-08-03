@@ -6,6 +6,24 @@ export interface ModelValidation {
   issues: string[];
 }
 
+/**
+ * Bounds on what a model may contain.
+ *
+ * Both ends of this pipeline are untrusted: a language model can emit anything, and
+ * the approve endpoint takes hand-edited JSON. Without a ceiling a 50,000-character
+ * label rendered happily and 5,000 components produced a 2.8 MB document that was
+ * then persisted per job. These are far above any real architecture — an L2 landscape
+ * is tens of components, not thousands — so they only ever catch runaway output.
+ */
+const LIMITS = {
+  components: 300,
+  zones: 60,
+  actors: 40,
+  flows: 800,
+  label: 200,
+  text: 4000,
+} as const;
+
 export function validateArchitectureModel(model: ArchitectureModel): ModelValidation {
   const issues: string[] = [];
   const ids = new Set<string>();
@@ -60,6 +78,27 @@ export function validateArchitectureModel(model: ArchitectureModel): ModelValida
 
   if (!model.title?.trim()) issues.push("Missing title");
   if (components.length === 0) issues.push("No components extracted");
+
+  const cap = (n: number, max: number, what: string) => {
+    if (n > max) issues.push(`Too many ${what}: ${n} (limit ${max})`);
+  };
+  cap(components.length, LIMITS.components, "components");
+  cap(zones.length, LIMITS.zones, "zones");
+  cap(actors.length, LIMITS.actors, "actors");
+  cap(flows.length, LIMITS.flows, "flows");
+
+  const overlong = [
+    ...components.map((c) => ["component label", c.label] as const),
+    ...zones.map((z) => ["zone label", z.label] as const),
+    ...actors.map((a) => ["actor label", a.label] as const),
+  ].filter(([, v]) => typeof v === "string" && v.length > LIMITS.label);
+  if (overlong.length) {
+    issues.push(
+      `${overlong.length} label(s) exceed ${LIMITS.label} characters — first: ${overlong[0][0]} of ${overlong[0][1].length}`
+    );
+  }
+  if ((model.title?.length ?? 0) > LIMITS.label) issues.push("Title is too long");
+  if ((model.summary?.length ?? 0) > LIMITS.text) issues.push("Summary is too long");
 
   return { ok: issues.length === 0, issues };
 }

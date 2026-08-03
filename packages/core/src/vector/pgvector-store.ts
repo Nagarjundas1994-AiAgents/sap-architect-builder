@@ -3,6 +3,7 @@ import { EMBEDDING_DIMS } from "@sap-architect/shared";
 import pg from "pg";
 import { embedText, toPgVectorLiteral } from "./embed.js";
 import {
+  RELEVANCE_FLOOR,
   type ScoredReference,
   type VectorStore,
   buildCorpusText,
@@ -112,10 +113,11 @@ export class PgVectorStore implements VectorStore {
        LIMIT $2`,
       [toPgVectorLiteral(q), limit]
     );
-    return rows.map((row) => ({
-      score: Number(row.score) || 0,
-      ref: rowToRef(row),
-    }));
+    return rows
+      .map((row) => ({ score: Number(row.score) || 0, ref: rowToRef(row) }))
+      // same floor as the in-memory store, so switching backends cannot change
+      // whether a diagram claims to be grounded in something
+      .filter((s) => s.score >= RELEVANCE_FLOOR);
   }
 
   async list(): Promise<ReferenceArchitecture[]> {

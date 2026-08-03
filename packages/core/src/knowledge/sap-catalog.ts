@@ -64,6 +64,11 @@ const CANONICAL = [
   "SAP Landscape Management Cloud",
   "SAP Business Accelerator Hub",
   "SAP Process Orchestration",
+  "SAP Process Integration",
+  "SAP Graph",
+  "SAP One Domain Model",
+  "SAP Gateway",
+  "SAP Business Connector",
 
   // Data and analytics
   "SAP HANA Cloud",
@@ -79,6 +84,15 @@ const CANONICAL = [
   "SAP BW/4HANA",
   "SAP SQL Anywhere",
   "SAP PowerDesigner",
+  "SAP Databricks",
+  "SAP Knowledge Graph",
+  "SAP Data Services",
+  "SAP Information Steward",
+  "SAP Landscape Transformation Replication Server",
+  "SAP Smart Data Integration",
+  "SAP Data Custodian",
+  "SAP Data Privacy Integration",
+  "SAP Data Retention Manager",
 
   // AI
   "SAP AI Core",
@@ -106,9 +120,14 @@ const CANONICAL = [
   "SAP Build Work Zone, standard edition",
   "SAP Build Work Zone, advanced edition",
   "SAP Cloud Application Programming Model",
+  "SAP ABAP RESTful Application Programming Model",
   "SAP Fiori",
   "SAP Fiori Launchpad",
+  "SAP Fiori Elements",
+  "SAP Start",
   "SAP UI5",
+  "SAP NetWeaver",
+  "SAP Business Rules",
   "SAP Mobile Services",
   "SAP Mobile Start",
   "SAP Task Center",
@@ -118,12 +137,14 @@ const CANONICAL = [
   "SAP Print Service",
 
   // Core business suite
+  "SAP Business Suite",
   "SAP S/4HANA",
   "SAP S/4HANA Cloud",
   "SAP S/4HANA Cloud, public edition",
   "SAP S/4HANA Cloud, private edition",
   "SAP ERP",
   "SAP ECC",
+  "SAP R/3",
   "SAP SuccessFactors",
   "SAP Ariba",
   "SAP Fieldglass",
@@ -146,6 +167,17 @@ const CANONICAL = [
   "SAP Signavio",
   "SAP LeanIX",
   "SAP Enable Now",
+  "SAP Customer Data Cloud",
+  "SAP Customer Data Platform",
+  "SAP Digital Manufacturing",
+  "SAP Asset Performance Management",
+  "SAP Sustainability Control Tower",
+  "SAP Sustainability Footprint Management",
+  "SAP Enterprise Architecture Designer",
+  "SAP Ariba Buying",
+  "SAP Ariba Sourcing",
+  "SAP Ariba Contracts",
+  "SAP S/4HANA Cloud for Projects",
 
   // Operations
   "SAP Cloud ALM",
@@ -186,6 +218,23 @@ const ALIASES: Record<string, string> = {
   "sap kyma": "SAP BTP, Kyma Runtime",
   "sap cap": "SAP Cloud Application Programming Model",
   "cap": "SAP Cloud Application Programming Model",
+  // RAP is the ABAP model and CAP the Node/Java one — different stacks on different
+  // runtimes. The fuzzy suggester used to answer "did you mean CAP?" for RAP, which a
+  // reader would act on; naming it explicitly stops that.
+  "sap rap": "SAP ABAP RESTful Application Programming Model",
+  rap: "SAP ABAP RESTful Application Programming Model",
+  "abap restful application programming model": "SAP ABAP RESTful Application Programming Model",
+  "sap slt": "SAP Landscape Transformation Replication Server",
+  slt: "SAP Landscape Transformation Replication Server",
+  "sap bods": "SAP Data Services",
+  "sap cdc": "SAP Customer Data Cloud",
+  gigya: "SAP Customer Data Cloud",
+  "sap dmc": "SAP Digital Manufacturing",
+  "sap apm": "SAP Asset Performance Management",
+  "sap sct": "SAP Sustainability Control Tower",
+  "sap ead": "SAP Enterprise Architecture Designer",
+  "sap netweaver gateway": "SAP Gateway",
+  "sap pi/po": "SAP Process Orchestration",
   "sapui5": "SAP UI5",
   "ui5": "SAP UI5",
   "sap sac": "SAP Analytics Cloud",
@@ -214,6 +263,24 @@ const ALIASES: Record<string, string> = {
   "sap intelligent rpa": "SAP Build Process Automation",
   "sap appgyver": "SAP Build Apps",
   "sap event broker": "SAP Event Broker for SAP Cloud Applications",
+  // Bare brand names. Architects write "Joule", not "SAP Joule", and `claimsToBeSap`
+  // now holds those to the catalogue — so every word it recognises needs a home here,
+  // or the tool reports SAP's own products as invented.
+  joule: "SAP Joule",
+  "joule studio": "SAP Joule Studio",
+  netweaver: "SAP NetWeaver",
+  datasphere: "SAP Datasphere",
+  fiori: "SAP Fiori",
+  "fiori launchpad": "SAP Fiori Launchpad",
+  "fiori elements": "SAP Fiori Elements",
+  successfactors: "SAP SuccessFactors",
+  ariba: "SAP Ariba",
+  concur: "SAP Concur",
+  fieldglass: "SAP Fieldglass",
+  signavio: "SAP Signavio",
+  leanix: "SAP LeanIX",
+  emarsys: "SAP Emarsys",
+  "business technology platform": "SAP Business Technology Platform",
   "sap advanced event mesh": "SAP Integration Suite, advanced event mesh",
   "sap aem": "SAP Integration Suite, advanced event mesh",
 };
@@ -287,7 +354,13 @@ export function verifySapProduct(rawName: string): ProductVerdict {
   let prefix: { canonical: string; len: number } | undefined;
   for (const [k, v] of BY_KEY) {
     if (k.length <= 6 || !key.startsWith(`${k} `)) continue;
-    if (!QUALIFIER.test(key.slice(k.length + 1))) continue;
+    const rest = key.slice(k.length + 1);
+    // SAP names a capability after its suite — "SAP Integration Suite - API Management",
+    // "SAP Cloud Identity Services - Identity Authentication". The remainder is then a
+    // catalogue entry in its own right, and the specific name is the truthful one.
+    const capability = BY_KEY.get(rest) ?? BY_KEY.get(`sap ${rest}`);
+    if (capability) return { status: "known", canonical: capability };
+    if (!QUALIFIER.test(rest)) continue;
     if (!prefix || k.length > prefix.len) prefix = { canonical: v, len: k.length };
   }
   if (prefix) return { status: "known", canonical: prefix.canonical };
@@ -323,9 +396,19 @@ export function verifySapProduct(rawName: string): ProductVerdict {
     : { status: "unverified" };
 }
 
-/** Does this name claim to be an SAP product? Only these are held to the catalogue. */
+/**
+ * Does this name claim to be an SAP product? Only these are held to the catalogue.
+ *
+ * The bare brand words matter: architects write "XSUAA" and "Joule" without the vendor
+ * prefix, and a box labelled only "Joule Orchestrator" was never checked at all.
+ */
 export function claimsToBeSap(name: string): boolean {
-  return /^sap\b/i.test(name.trim()) || /\bs\/4hana\b|\bsuccessfactors\b|\bariba\b|\bfieldglass\b/i.test(name);
+  const n = name.trim();
+  return (
+    /^sap\b/i.test(n) ||
+    /\bs\/4hana\b|\bsuccessfactors\b|\bariba\b|\bfieldglass\b|\bconcur\b|\bsignavio\b|\bleanix\b|\bemarsys\b/i.test(n) ||
+    /\bxsuaa\b|\bjoule\b|\bnetweaver\b|\bdatasphere\b|\bfiori\b|\babap\b/i.test(n)
+  );
 }
 
 export const __catalogSize = CANONICAL.length;

@@ -37,6 +37,14 @@
             "viewer": {
               "password": "viewer",
               "roles": ["Viewer"]
+            },
+            "architect2": {
+              "password": "architect2",
+              "roles": ["Architect", "Viewer"]
+            },
+            "auditor": {
+              "password": "auditor",
+              "roles": ["Auditor", "Viewer"]
             }
           }
         }

@@ -15,6 +15,17 @@ export interface VectorStore {
   close?(): Promise<void>;
 }
 
+/**
+ * Below this, a hit is hash noise rather than a match.
+ *
+ * Embeddings here are 256-dimension feature hashing, so unrelated vocabularies still
+ * collide into shared buckets: "banana helicopter tuesday marmalade" scored 0.11
+ * against the integration reference. Returning that as the closest reference is worse
+ * than returning nothing, because the gap agent then recommends products from it and
+ * the studio prints a percentage that reads like a confidence.
+ */
+export const RELEVANCE_FLOOR = 0.3;
+
 export function scoreLocal(
   query: string,
   refs: ReferenceArchitecture[],
@@ -26,6 +37,7 @@ export function scoreLocal(
       const emb = ref.embedding ?? embedText(buildCorpusText(ref));
       return { ref: { ...ref, embedding: emb }, score: cosineSimilarity(q, emb) };
     })
+    .filter((s) => s.score >= RELEVANCE_FLOOR)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
