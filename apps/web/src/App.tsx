@@ -748,7 +748,7 @@ export default function App() {
             </div>
           </section>
 
-          <div className="rail-run">
+          <div className="rail-run" id="rail-run">
             <button className="btn btn-go" onClick={start} disabled={busy !== null}>
               {busy === "run" ? (
                 <>
@@ -782,6 +782,23 @@ export default function App() {
             </section>
           )}
         </aside>
+
+        {/*
+          Collapse handle on the rail's own edge. The ☰ in the bar does the same thing,
+          but the seam is where people reach for it — and it rides `--rail`, so it
+          travels with the panel instead of jumping when the panel animates.
+        */}
+        <button
+          type="button"
+          className="rail-edge"
+          onClick={() => setRailOpen((o) => !o)}
+          aria-expanded={railOpen}
+          aria-controls="rail"
+          aria-label={railOpen ? "Hide the input panel" : "Show the input panel"}
+          title={railOpen ? "Hide panel" : "Show panel"}
+        >
+          <span aria-hidden="true">{railOpen ? "‹" : "›"}</span>
+        </button>
 
         {/* ── Stage ─────────────────────────────────────────────── */}
         <main className="stage">
