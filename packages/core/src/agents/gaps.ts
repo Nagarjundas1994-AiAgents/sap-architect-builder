@@ -89,6 +89,37 @@ export function analyzeGaps(
     }
   }
 
+  // A component with flows can still sit on a broken pipeline: data arrives and
+  // stops. "Ingest IoT files into Integration Suite" with nothing downstream reads
+  // as a working ingestion path and is not one — a worse defect than an orphan,
+  // because nothing about the drawing looks wrong.
+  // Some things are meant to be the end of the line: stores hold data, identity
+  // providers answer and stop, people and third parties are outside our reach. Kind
+  // alone is unreliable — models label SAP HANA Cloud a "sap-service" — so the label
+  // and the inbound intent are consulted too.
+  const TERMINAL_KIND = new Set(["database", "identity", "actor", "external"]);
+  const TERMINAL_LABEL = /hana|database|\bdb\b|data ?lake|warehouse|object store|identity|authentication|directory|\bidp\b/i;
+  for (const c of model.components) {
+    const inbound = model.flows.filter((f) => f.targetId === c.id);
+    const outbound = model.flows.filter((f) => f.sourceId === c.id);
+    if (!inbound.length || outbound.length) continue;
+    if (TERMINAL_KIND.has(c.kind) || TERMINAL_LABEL.test(c.officialName ?? c.label)) continue;
+    // authentication and authorization terminate at whatever answers them
+    if (inbound.every((f) => f.mode === "trust" || f.mode === "authorization")) continue;
+    // integration and messaging exist to pass things on; stopping there is a hole
+    const conveyor = c.kind === "integration" || /mesh|broker|gateway|queue|topic/i.test(c.label);
+    gaps.push({
+      id: `gap-deadend-${c.id}`,
+      category: "missing-flow",
+      severity: conveyor ? "high" : "medium",
+      message: `"${c.label}" receives data but never passes it on.`,
+      suggestion: conveyor
+        ? `Show what consumes it — an ingestion or event path that ends here is incomplete.`
+        : "Add the downstream flow, or mark it as the intended endpoint.",
+      relatedComponentIds: [c.id],
+    });
+  }
+
   const floating = model.components.filter(
     (c) => !model.flows.some((f) => f.sourceId === c.id || f.targetId === c.id)
   );

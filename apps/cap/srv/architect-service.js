@@ -230,7 +230,9 @@ module.exports = class ArchitectService extends cds.ApplicationService {
       providersJson: JSON.stringify(catalog),
       engine: process.env.PIPELINE_ENGINE || "langgraph",
       requireHumanReview: process.env.REQUIRE_HUMAN_REVIEW !== "false",
-      hasApiKey: Boolean(process.env.OPENAI_API_KEY),
+      // the active provider's key, not OpenAI's — this read false on a live
+      // Gemini or DeepSeek deployment
+      hasApiKey: catalog.some((p) => p.id !== "mock" && p.ready),
       vectorKind,
       vectorCount,
     };

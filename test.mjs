@@ -760,3 +760,34 @@ test("landscape zones are filled panels; dashed overlays are only for inner boun
   assert.match(styleOf("zinner"), /dashed=1/, "inner boundary keeps the dashed treatment");
   assert.deepEqual(validateDrawioXml(xml).issues, []);
 });
+
+test("a pipeline that receives data but never passes it on is reported", () => {
+  const model = {
+    ...MODEL,
+    zones: [{ id: "z1", label: "SAP BTP", kind: "sap-btp" }],
+    components: [
+      { id: "s4", label: "SAP S/4HANA Cloud", kind: "sap-product", zoneId: "z1" },
+      { id: "mesh", label: "SAP Event Mesh", kind: "sap-service", zoneId: "z1" },
+      { id: "hana", label: "SAP HANA Cloud", kind: "sap-service", zoneId: "z1" },
+      { id: "ias", label: "SAP Cloud Identity Services", kind: "sap-service", zoneId: "z1" },
+      { id: "ds", label: "SAP Datasphere", kind: "sap-product", zoneId: "z1" },
+    ],
+    flows: [
+      { id: "f1", sourceId: "s4", targetId: "mesh", mode: "event" },   // nobody consumes
+      { id: "f2", sourceId: "ds", targetId: "hana", mode: "sync" },    // a store: fine
+      { id: "f3", sourceId: "ds", targetId: "ias", mode: "trust" },    // identity: fine
+      { id: "f4", sourceId: "s4", targetId: "ds", mode: "batch" },
+    ],
+  };
+  const dead = analyzeGaps(model, []).filter((g) => g.id.startsWith("gap-deadend"));
+  assert.equal(dead.length, 1, `expected only the event broker, got ${dead.map((g) => g.message)}`);
+  assert.match(dead[0].message, /Event Mesh/);
+  assert.equal(dead[0].severity, "high", "an unconsumed event path is a real hole");
+
+  // once something consumes the events the finding clears
+  const fixed = analyzeGaps(
+    { ...model, flows: [...model.flows, { id: "f5", sourceId: "mesh", targetId: "ds", mode: "event" }] },
+    []
+  );
+  assert.equal(fixed.filter((g) => g.id.startsWith("gap-deadend")).length, 0);
+});

@@ -37,14 +37,69 @@ cds.on("served", () => {
     return;
   }
 
-  /** Run service action as Architect (mocked/XSUAA roles). */
-  async function asArchitect(fn) {
-    const user = new cds.User({
-      id: "architect",
-      roles: ["Architect", "Viewer", "authenticated-user"],
-      attr: {},
-    });
+  // Authenticate every /api request with CAP's own strategy — XSUAA in production,
+  // mocked users locally. Without this the facade bypassed the service's @requires
+  // annotations entirely, because it invented its own privileged user.
+  // `context` first: the auth strategies write the resolved user onto cds.context,
+  // so mounting auth alone crashes on a custom route that never established one.
+  app.use("/api", cds.middlewares.context(), cds.middlewares.auth());
+
+  /**
+   * Run a service call as the caller.
+   *
+   * The user comes from the validated request, so the @requires annotations on
+   * ArchitectService decide what is allowed — the facade grants nothing of its own.
+   */
+  async function asCaller(req, fn) {
+    const user = req.user;
+    if (!user || user._is_anonymous) {
+      const err = new Error("Authentication required");
+      err.status = 401;
+      throw err;
+    }
     return Architect.tx({ user }, async (tx) => fn(tx));
+  }
+
+  /**
+   * Throttle the endpoints that spend money.
+   *
+   * A pipeline run is several LLM calls, so an authenticated user in a loop is a
+   * bill, not just load.
+   *
+   * ponytail: in-memory and per-instance — with more than one app instance the
+   * effective limit multiplies. Move to a shared store (Redis) or an API-Management
+   * policy before scaling out.
+   */
+  const RATE_MAX = Number(process.env.RATE_LIMIT_PER_MINUTE || 20);
+  const hits = new Map();
+  function rateLimit(req, res, next) {
+    const key = req.user?.id || req.ip;
+    const now = Date.now();
+    const window = hits.get(key)?.filter((t) => now - t < 60_000) ?? [];
+    if (window.length >= RATE_MAX) {
+      res.status(429).json({ error: `Rate limit exceeded (${RATE_MAX}/min)` });
+      return;
+    }
+    window.push(now);
+    hits.set(key, window);
+    // the map would otherwise grow with every distinct caller
+    if (hits.size > 5000) for (const [k, v] of hits) if (!v.some((t) => now - t < 60_000)) hits.delete(k);
+    next();
+  }
+  app.use(["/api/demo", "/api/pipeline", "/api/jobs/:id/approve", "/api/corpus/seed"], rateLimit);
+
+  /**
+   * HTTP status for a thrown error.
+   *
+   * CAP reports authorization failures on `code`/`statusCode` rather than `status`,
+   * so reading only one of them turned every 403 into a 500 and hid the real reason.
+   */
+  function errStatus(e, fallback = 500) {
+    for (const v of [e?.status, e?.statusCode, e?.code]) {
+      const n = Number(v);
+      if (Number.isInteger(n) && n >= 400 && n <= 599) return n;
+    }
+    return fallback;
   }
 
   function httpStatus(result) {
@@ -61,19 +116,19 @@ cds.on("served", () => {
 
   // ── REST facade (React studio) ──────────────────────────────────────────
 
-  app.get("/api/health", async (_req, res) => {
+  app.get("/api/health", async (req, res) => {
     try {
-      const info = await asArchitect((tx) => tx.send("health"));
+      const info = await asCaller(req, (tx) => tx.send("health"));
       res.json(info);
     } catch (e) {
-      res.status(500).json({ ok: false, backend: "cap", error: e.message });
+      res.status(errStatus(e)).json({ ok: false, backend: "cap", error: e.message });
     }
   });
 
-  app.get("/api/references", async (_req, res) => {
+  app.get("/api/references", async (req, res) => {
     try {
       const { SELECT } = cds.ql;
-      const rows = await asArchitect((tx) =>
+      const rows = await asCaller(req, (tx) =>
         tx.run(SELECT.from(Architect.entities.ReferenceArchitectures))
       );
       res.json({
@@ -90,13 +145,13 @@ cds.on("served", () => {
         })),
       });
     } catch (e) {
-      res.status(500).json({ error: e.message });
+      res.status(errStatus(e)).json({ error: e.message });
     }
   });
 
   app.post("/api/demo", async (req, res) => {
     try {
-      const jobResult = await asArchitect((tx) =>
+      const jobResult = await asCaller(req, (tx) =>
         tx.send("runDemo", {
           hints: req.body?.hints || "agentic joule custom agents",
           fileName: req.body?.fileName || "whiteboard-agentic.png",
@@ -107,14 +162,14 @@ cds.on("served", () => {
       sendUi(res, jobResult);
     } catch (e) {
       console.error("[cap/api/demo]", e);
-      res.status(500).json({ error: e.message || String(e) });
+      res.status(errStatus(e)).json({ error: e.message || String(e) });
     }
   });
 
   app.post("/api/pipeline", async (req, res) => {
     try {
       const body = req.body || {};
-      const jobResult = await asArchitect((tx) =>
+      const jobResult = await asCaller(req, (tx) =>
         tx.send("runPipeline", {
           hints: body.hints,
           fileName: body.fileName || "upload.png",
@@ -127,19 +182,18 @@ cds.on("served", () => {
       sendUi(res, jobResult);
     } catch (e) {
       console.error("[cap/api/pipeline]", e);
-      res.status(500).json({ error: e.message || String(e) });
+      res.status(errStatus(e)).json({ error: e.message || String(e) });
     }
   });
 
   app.get("/api/jobs/:id", async (req, res) => {
     try {
-      const jobResult = await asArchitect((tx) =>
+      const jobResult = await asCaller(req, (tx) =>
         tx.send("getJob", { jobId: req.params.id })
       );
       sendUi(res, jobResult);
     } catch (e) {
-      const code = /not found/i.test(e.message) ? 404 : 500;
-      res.status(code).json({ error: e.message || String(e) });
+      res.status(errStatus(e, /not found/i.test(e.message) ? 404 : 500)).json({ error: e.message || String(e) });
     }
   });
 
@@ -150,7 +204,7 @@ cds.on("served", () => {
         res.status(400).json({ error: "Body must be an ArchitectureModel (or { model })" });
         return;
       }
-      const jobResult = await asArchitect((tx) =>
+      const jobResult = await asCaller(req, (tx) =>
         tx.send("approvePipeline", {
           jobId: req.params.id,
           modelJson: JSON.stringify(model),
@@ -159,13 +213,13 @@ cds.on("served", () => {
       sendUi(res, jobResult);
     } catch (e) {
       console.error("[cap/api/approve]", e);
-      res.status(400).json({ error: e.message || String(e) });
+      res.status(errStatus(e, 400)).json({ error: e.message || String(e) });
     }
   });
 
   app.get("/api/jobs/:id/drawio", async (req, res) => {
     try {
-      const jobResult = await asArchitect((tx) =>
+      const jobResult = await asCaller(req, (tx) =>
         tx.send("getJob", { jobId: req.params.id })
       );
       if (!jobResult?.drawioXml) {
@@ -177,18 +231,18 @@ cds.on("served", () => {
       res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
       res.send(jobResult.drawioXml);
     } catch (e) {
-      res.status(500).json({ error: e.message || String(e) });
+      res.status(errStatus(e)).json({ error: e.message || String(e) });
     }
   });
 
   app.post("/api/corpus/seed", async (req, res) => {
     try {
-      const out = await asArchitect((tx) =>
+      const out = await asCaller(req, (tx) =>
         tx.send("seedCorpus", { discover: Boolean(req.body?.discover) })
       );
       res.json(out);
     } catch (e) {
-      res.status(500).json({ error: e.message || String(e) });
+      res.status(errStatus(e)).json({ error: e.message || String(e) });
     }
   });
 

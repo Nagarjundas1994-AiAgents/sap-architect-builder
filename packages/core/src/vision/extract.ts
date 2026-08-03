@@ -40,6 +40,9 @@ Rules:
 - Mark the subject of the diagram "focus" and surrounding context "muted".
 - Stable kebab-case ids. confidence is 0-1.
 - Never invent a product, protocol or trust relationship that is not evidenced.
+- A statement that covers a group covers every member of it. "All users authenticate
+  through X" means one flow per actor, not one flow in total. The same applies to
+  "every system reaches Y through Z". Never collapse a group rule into one example.
 - Actors are placed inside the zone whose "kind" is "user". If the people in the
   diagram sit in a zone — "Devices", "Channels", "Users" — give that zone
   kind:"user", even when it also holds phones or laptops. Exactly one zone.
@@ -106,13 +109,27 @@ function dedupeIds(raw: Partial<ArchitectureModel>): void {
   }
 }
 
+/**
+ * Level states how much detail the drawing carries, and reviewers read it that way.
+ * Models routinely claim L1 for a landscape with two dozen components and nested
+ * zones, which is an L2 by any reading — so an obviously wrong claim is corrected.
+ */
+function levelFor(raw: Partial<ArchitectureModel>): ArchitectureModel["level"] {
+  const claimed = raw.level ?? "L1";
+  const components = raw.components?.length ?? 0;
+  const nested = (raw.zones ?? []).some((z) => z.parentId);
+  if (claimed === "L0" && components > 6) return "L1";
+  if (claimed !== "L2" && (components >= 14 || (components >= 10 && nested))) return "L2";
+  return claimed;
+}
+
 function normalizeModel(raw: Partial<ArchitectureModel>, fileName?: string): ArchitectureModel {
   const now = new Date().toISOString();
   dedupeIds(raw);
   return {
     id: raw.id ?? `arch-${Date.now()}`,
     title: raw.title ?? "Extracted Architecture",
-    level: raw.level ?? "L1",
+    level: levelFor(raw),
     style: raw.style,
     summary: raw.summary ?? "",
     actors: raw.actors ?? [],
